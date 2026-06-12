@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, nextTick, useTemplateRef } from 'vue'
+import { ref, onMounted, onUnmounted, nextTick } from 'vue'
 
 const props = withDefaults(
   defineProps<{
@@ -25,7 +25,8 @@ const props = withDefaults(
 
 const emit = defineEmits<{ ready: [viewer: Cesium.Viewer] }>()
 
-const containerRef = useTemplateRef<HTMLDivElement>('container')
+// ⚠️ 变量名必须和模板 ref="container" 一致
+const container = ref<HTMLDivElement | null>(null)
 const viewer = ref<Cesium.Viewer | null>(null)
 const isReady = ref(false)
 const initError = ref<string | null>(null)
@@ -68,23 +69,17 @@ function forceHeight(v: Cesium.Viewer) {
 }
 
 function initViewer() {
-  const el = containerRef.value
+  const el = container.value
   if (!el) return
 
   try {
     const C = window.Cesium
     if (!C) throw new Error('window.Cesium 未加载')
 
-    const sm: Record<string, number> = {
-      '3d': C.SceneMode?.SCENE3D ?? 1,
-      '2d': C.SceneMode?.SCENE2D ?? 2,
-      columbus: C.SceneMode?.COLUMBUS_VIEW ?? 3,
-    }
-
     const v = new C.Viewer(el, {
       imageryProvider: makeImageryProvider(C),
       terrainProvider: makeTerrainProvider(C),
-      sceneMode: sm[props.sceneMode] ?? 1,
+      sceneMode: (C.SceneMode?.SCENE3D ?? 1),
       animation: false, timeline: false,
       baseLayerPicker: false, fullscreenButton: false,
       homeButton: false, sceneModePicker: false,
@@ -105,8 +100,8 @@ function initViewer() {
     const doResize = () => { if (v && !v.isDestroyed()) { forceHeight(v); v.resize() } }
     resizeObserver = new ResizeObserver(() => doResize())
     resizeObserver.observe(el)
-    setTimeout(() => doResize(), 50)
-    setTimeout(() => doResize(), 300)
+    setTimeout(() => doResize(), 100)
+    setTimeout(() => doResize(), 400)
 
     const [lon, lat, h] = props.initialPosition
     v.camera.flyTo({
@@ -124,12 +119,9 @@ function initViewer() {
 }
 
 onMounted(async () => {
-  if (!containerRef.value) return
-  // nextTick: Vue DOM 刷新 → requestAnimationFrame: 浏览器布局完成 → 初始化 WebGL
+  if (!container.value) return
   await nextTick()
-  requestAnimationFrame(() => {
-    initViewer()
-  })
+  initViewer()
 })
 
 onUnmounted(() => {
