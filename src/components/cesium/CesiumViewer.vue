@@ -2,61 +2,27 @@
 /**
  * CesiumViewer — Cesium 基础组件
  *
- * 封装 Viewer 的创建、销毁、自适应 resize。
- * 其他页面只需引入此组件，拿到 viewer 实例后添加业务功能。
+ * 封装 Viewer 创建/销毁、自适应 resize、底图选择。
+ * 其他页面只需引入此组件，@ready 拿到 viewer 后添加业务功能。
  *
- * --- 使用方式 ---
- * ```vue
- * <CesiumViewer @ready="onReady" imagery="osm">
- *   <div class="absolute top-4 left-4">覆盖层 UI</div>
- * </CesiumViewer>
- * ```
+ * @example
+ * <CesiumViewer @ready="onReady" imagery="osm" />
  *
- * @emits ready(viewer) — Viewer 创建完成，返回 Cesium.Viewer 实例
+ * @emits ready(viewer)
  */
 
-import { ref, onMounted, onUnmounted, watch, useTemplateRef } from 'vue'
+import { ref, onMounted, onUnmounted, useTemplateRef } from 'vue'
 
 // ==================== Props ====================
 const props = withDefaults(
   defineProps<{
-    /**
-     * 底图影像类型
-     * - 'osm': OpenStreetMap（免费，无需 Token，默认）
-     * - 'ion': Cesium Ion 全球影像（需设置 Cesium.Ion.defaultAccessToken）
-     * - 'bing': Bing Maps（需要 accessToken prop）
-     * - 'none': 不加载底图，只显示几何体和地形
-     */
     imagery?: 'osm' | 'ion' | 'bing' | 'none'
-
-    /**
-     * 地形提供者
-     * - 'ellipsoid': 默认椭球体（无地形起伏）
-     * - 'ion': Cesium World Terrain（需 Token）
-     * - 'none': 无地形
-     */
     terrain?: 'ellipsoid' | 'ion' | 'none'
-
-    /**
-     * Bing Maps / Cesium Ion Access Token
-     * 若 imagery='ion' 或 terrain='ion'，优先用此 prop，
-     * 否则fallback到 Cesium.Ion.defaultAccessToken
-     */
     accessToken?: string
-
-    /** 初始相机经纬度 [lng, lat, height(m)] */
     initialPosition?: [number, number, number]
-
-    /** 是否显示 Cesium Ion 版权信息 */
     showCredit?: boolean
-
-    /** 初始场景模式 */
     sceneMode?: '3d' | '2d' | 'columbus'
-
-    /** 是否显示大气层效果 */
     skyAtmosphere?: boolean
-
-    /** 是否显示星空 */
     skyBox?: boolean
   }>(),
   {
@@ -70,10 +36,7 @@ const props = withDefaults(
   },
 )
 
-// ==================== Emits ====================
-const emit = defineEmits<{
-  ready: [viewer: Cesium.Viewer]
-}>()
+const emit = defineEmits<{ ready: [viewer: Cesium.Viewer] }>()
 
 // ==================== State ====================
 const containerRef = useTemplateRef<HTMLDivElement>('container')
@@ -82,7 +45,6 @@ const isReady = ref(false)
 const initError = ref<string | null>(null)
 
 let resizeObserver: ResizeObserver | null = null
-let windowResizeHandler: (() => void) | null = null
 
 // ==================== 底图工厂 ====================
 function createImageryProvider(): any {
@@ -90,25 +52,22 @@ function createImageryProvider(): any {
   if (!C) return undefined
 
   switch (props.imagery) {
-    case 'osm': {
-      // OpenStreetMap — 免费，无需 Token，地球马上能看见
-      return new C.OpenStreetMapImageryProvider({
-        url: 'https://tile.openstreetmap.org/',
-        maximumLevel: 18,
-      })
-    }
+    case 'osm':
+      // 使用 Cesium 内置 OSM 默认 URL 模板，不要传自定义 url
+      return new C.OpenStreetMapImageryProvider({ maximumLevel: 18 })
+
     case 'ion': {
       const token = props.accessToken || (C as any).Ion?.defaultAccessToken
       if (token) {
         ;(C as any).Ion.defaultAccessToken = token
         return C.IonImageryProvider?.fromAssetId
-          ? C.IonImageryProvider.fromAssetId(2) // Bing Maps Aerial
-          : new C.OpenStreetMapImageryProvider({ url: 'https://tile.openstreetmap.org/' })
+          ? C.IonImageryProvider.fromAssetId(2)
+          : new C.OpenStreetMapImageryProvider({ maximumLevel: 18 })
       }
-      // fallback to OSM
-      console.warn('[CesiumViewer] Ion imagery 需要 accessToken，已 fallback 到 OSM')
-      return new C.OpenStreetMapImageryProvider({ url: 'https://tile.openstreetmap.org/' })
+      console.warn('[CesiumViewer] Ion 需 Token，fallback → OSM')
+      return new C.OpenStreetMapImageryProvider({ maximumLevel: 18 })
     }
+
     case 'bing': {
       if (props.accessToken) {
         return new C.BingMapsImageryProvider({
@@ -116,9 +75,10 @@ function createImageryProvider(): any {
           key: props.accessToken,
         })
       }
-      console.warn('[CesiumViewer] Bing imagery 需要 accessToken，已 fallback 到 OSM')
-      return new C.OpenStreetMapImageryProvider({ url: 'https://tile.openstreetmap.org/' })
+      console.warn('[CesiumViewer] Bing 需 Token，fallback → OSM')
+      return new C.OpenStreetMapImageryProvider({ maximumLevel: 18 })
     }
+
     case 'none':
     default:
       return undefined
@@ -134,16 +94,40 @@ function createTerrainProvider(): any {
       return new C.EllipsoidTerrainProvider()
     case 'ion': {
       const token = props.accessToken || (C as any).Ion?.defaultAccessToken
-      if (token) {
-        return C.createWorldTerrain?.() ?? new C.EllipsoidTerrainProvider()
-      }
-      console.warn('[CesiumViewer] Ion terrain 需要 accessToken，已 fallback 到 Ellipsoid')
+      if (token) return C.createWorldTerrain?.() ?? new C.EllipsoidTerrainProvider()
+      console.warn('[CesiumViewer] Ion terrain 需 Token，fallback → Ellipsoid')
       return new C.EllipsoidTerrainProvider()
     }
     case 'none':
     default:
       return undefined
   }
+}
+
+// ==================== 高度修正 ====================
+/**
+ * 强制 Cesium 内部 DOM 填满容器高度
+ * Cesium 创建的 .cesium-viewer / .cesium-widget / canvas 默认没有 height:100%
+ */
+function forceFillHeight(v: Cesium.Viewer) {
+  const root = v.container.parentElement // .cesium-viewer-root
+  if (root) {
+    root.style.height = '100%'
+    root.style.width = '100%'
+  }
+
+  const el = v.container // div we passed to Viewer
+  el.style.height = '100%'
+  el.style.width = '100%'
+
+  // cesium-viewer → cesium-widget → canvas
+  const cv = el.querySelector('.cesium-viewer') as HTMLElement
+  const cw = el.querySelector('.cesium-widget') as HTMLElement
+  const canvas = v.canvas as HTMLElement
+
+  if (cv) { cv.style.height = '100%'; cv.style.width = '100%' }
+  if (cw) { cw.style.height = '100%'; cw.style.width = '100%' }
+  if (canvas) { canvas.style.height = '100%'; canvas.style.width = '100%' }
 }
 
 // ==================== 初始化 ====================
@@ -154,10 +138,8 @@ onMounted(() => {
     const C = window.Cesium
     if (!C) throw new Error('window.Cesium 未加载')
 
-    // 合成 Viewer 配置
     const imageryProvider = createImageryProvider()
     const terrainProvider = createTerrainProvider()
-
     const sceneModeMap: Record<string, number> = {
       '3d': C.SceneMode?.SCENE3D ?? 1,
       '2d': C.SceneMode?.SCENE2D ?? 2,
@@ -165,12 +147,9 @@ onMounted(() => {
     }
 
     const v = new C.Viewer(containerRef.value, {
-      // ---- 底图 ----
       imageryProvider,
       terrainProvider,
-      // ---- 场景 ----
       sceneMode: sceneModeMap[props.sceneMode] ?? 1,
-      // ---- UI 控件全部关闭 ----
       animation: false,
       timeline: false,
       baseLayerPicker: false,
@@ -183,27 +162,24 @@ onMounted(() => {
       infoBox: false,
     })
 
-    // skyBox / skyAtmosphere 在 Viewer 创建后通过 scene 设置
-    // 直接在构造函数传参在 Cesium 1.111 中有兼容性问题
+    // 场景设置
     if (v.scene) {
       v.scene.skyAtmosphere.show = props.skyAtmosphere
       v.scene.skyBox.show = props.skyBox
     }
 
-    // 版权信息
+    // 版权隐藏
     if (!props.showCredit && v.cesiumWidget) {
       v.cesiumWidget.creditContainer.style.display = 'none'
     }
 
+    // ---- 高度强制填充 ----
+    forceFillHeight(v)
+
     // ---- 自适应 resize ----
     const doResize = () => {
       if (v && !v.isDestroyed()) {
-        // 强制 canvas 填满容器
-        const canvas = v.canvas
-        if (canvas) {
-          canvas.style.width = '100%'
-          canvas.style.height = '100%'
-        }
+        forceFillHeight(v)
         v.resize()
       }
     }
@@ -211,15 +187,12 @@ onMounted(() => {
     resizeObserver = new ResizeObserver(() => doResize())
     resizeObserver.observe(containerRef.value)
 
-    windowResizeHandler = () => doResize()
-    window.addEventListener('resize', windowResizeHandler)
+    // 多次延时确保首次渲染后尺寸正确
+    setTimeout(() => doResize(), 50)
+    setTimeout(() => doResize(), 200)
+    setTimeout(() => doResize(), 600)
 
-    // 首次强制 resize（解决初始时 canvas 尺寸不对的问题）
-    // Cesium 在构造后 canvas 可能未立即计算正确尺寸
-    setTimeout(() => doResize(), 100)
-    setTimeout(() => doResize(), 500)
-
-    // ---- 相机飞到初始位置 ----
+    // ---- 相机 ----
     const [lon, lat, height] = props.initialPosition
     v.camera.flyTo({
       destination: C.Cartesian3.fromDegrees(lon, lat, height),
@@ -231,7 +204,7 @@ onMounted(() => {
     emit('ready', v)
   } catch (e: any) {
     initError.value = e.message || String(e)
-    console.error('[CesiumViewer] 初始化失败:', e)
+    console.error('[CesiumViewer] 失败:', e)
   }
 })
 
@@ -240,37 +213,23 @@ onUnmounted(() => {
     resizeObserver.disconnect()
     resizeObserver = null
   }
-  if (windowResizeHandler) {
-    window.removeEventListener('resize', windowResizeHandler)
-    windowResizeHandler = null
-  }
   if (viewer.value && !viewer.value.isDestroyed()) {
     viewer.value.destroy()
   }
 })
 
-// ==================== 暴露方法 ====================
-defineExpose({
-  viewer,
-  isReady,
-  /** 手动触发 resize */
-  resize() {
-    if (viewer.value && !viewer.value.isDestroyed()) {
-      viewer.value.resize()
-    }
-  },
-})
+defineExpose({ viewer, isReady })
 </script>
 
 <template>
-  <div class="cesium-viewer-root w-full h-full relative min-h-0">
-    <!-- Cesium 挂载容器 — 必须 100% 填充 -->
+  <div class="absolute inset-0">
+    <!-- Cesium 容器 -->
     <div
       ref="container"
-      class="cesium-container w-full h-full"
+      class="cesium-host w-full h-full"
     />
 
-    <!-- 错误提示 -->
+    <!-- 错误 -->
     <div
       v-if="initError"
       class="absolute inset-0 flex items-center justify-center bg-zinc-950/90 z-20"
@@ -281,40 +240,36 @@ defineExpose({
       </div>
     </div>
 
-    <!-- 加载遮罩 -->
+    <!-- 加载 -->
     <div
       v-else-if="!isReady"
       class="absolute inset-0 flex items-center justify-center bg-surface z-10"
     >
       <div class="flex flex-col items-center gap-3">
-        <div
-          class="w-8 h-8 border-2 border-accent border-t-transparent rounded-full animate-spin"
-        />
+        <div class="w-8 h-8 border-2 border-accent border-t-transparent rounded-full animate-spin" />
         <span class="text-sm text-zinc-500">加载 Cesium...</span>
       </div>
     </div>
-
-    <!-- 覆盖层插槽 -->
-    <slot v-if="isReady && viewer" :viewer="viewer" />
   </div>
 </template>
 
-<style scoped>
+<style>
 /*
- * 关键：Cesium 生成的 canvas 需要绝对定位填满容器
- * viewer 内部会给 canvas 设 position: absolute
+ * NOT scoped — 必须穿透到 Cesium 内部 DOM
+ * Cesium 创建的 .cesium-viewer / .cesium-widget / canvas 不继承高度
  */
-.cesium-viewer-root {
-  min-height: 0;
+.cesium-host {
+  position: relative;
+  overflow: hidden;
 }
 
-/*
- * Cesium Widget 默认样式中有一些影响布局的规则，
- * 这里确保容器始终 100% 填充。
- */
-.cesium-container :deep(.cesium-viewer),
-.cesium-container :deep(.cesium-widget),
-.cesium-container :deep(.cesium-widget canvas) {
+/* Cesium 内部容器：全部撑满 */
+.cesium-host .cesium-viewer,
+.cesium-host .cesium-widget,
+.cesium-host .cesium-widget canvas {
+  position: absolute !important;
+  top: 0 !important;
+  left: 0 !important;
   width: 100% !important;
   height: 100% !important;
 }

@@ -144,8 +144,8 @@ function flyTo(lon: number, lat: number, height: number) {
       </div>
     </div>
 
-    <!-- Cesium 场景 -->
-    <div class="flex-1 w-full min-h-0 relative">
+    <!-- Cesium 场景 — relative + flex-1 让 absolute inset-0 的 CesiumViewer 正确填充 -->
+    <div class="flex-1 w-full relative min-h-0">
       <CesiumViewer
         imagery="osm"
         :initial-position="[116.397, 39.909, 10_000_000]"
