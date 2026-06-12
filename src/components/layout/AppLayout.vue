@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { NLayout, NLayoutSider, NLayoutContent } from 'naive-ui'
 import {
   Home,
   Globe,
@@ -18,141 +17,127 @@ const route = useRoute()
 const collapsed = ref(false)
 const siderWidth = computed(() => (collapsed.value ? 64 : 240))
 
-/** 统一的 header 高度 — 侧栏 Logo 和所有 Demo 页顶栏对齐 */
-const HEADER_H = 'h-12'
-
-interface NavGroup {
-  label: string
-  icon: any
-  children: { label: string; path: string }[]
-}
-
-const navGroups: NavGroup[] = [
+const navGroups = [
   {
     label: 'Cesium',
     icon: Globe,
     children: [
-      { label: 'Hello Cesium — 地球初始化', path: '/cesium/hello' },
-      { label: '自定义 Primitive 几何体', path: '/cesium/primitive-custom' },
-      { label: 'CustomShader — 动态水域', path: '/cesium/shader-water' },
+      { label: 'Hello Cesium', path: '/cesium/hello' },
+      { label: '自定义 Primitive', path: '/cesium/primitive-custom' },
+      { label: 'Shader 水域', path: '/cesium/shader-water' },
     ],
   },
   {
     label: 'Three.js',
     icon: Box,
-    children: [
-      { label: 'Hello Three — 场景初始化', path: '/three/hello' },
-    ],
+    children: [{ label: 'Hello Three', path: '/three/hello' }],
   },
   {
     label: 'Babylon.js',
     icon: Pyramid,
-    children: [
-      { label: 'Hello Babylon — 5 分钟搭建', path: '/babylon/hello' },
-    ],
+    children: [{ label: 'Hello Babylon', path: '/babylon/hello' }],
   },
 ]
 
 const activeKey = computed(() => route.path)
 
-function navigateTo(path: string) {
-  router.push(path)
+function go(p: string) {
+  router.push(p)
 }
 </script>
 
 <template>
-  <NLayout id="app-layout" has-sider>
-    <!-- ========== 侧边栏 ========== -->
-    <NLayoutSider
-      id="app-sider"
-      bordered
-      :collapsed="collapsed"
-      :width="siderWidth"
-      :native-scrollbar="false"
-      class="bg-surface border-r border-surface-border"
+  <!--
+    app-shell: 全屏 flex 行
+    左侧 sidebar（固定宽度）+ 右侧 main（flex-1 填满剩余）
+    不使用任何 Naive UI 布局组件，纯 CSS flex
+  -->
+  <div class="app-shell flex h-full w-full bg-zinc-950">
+
+    <!-- ====== 左侧菜单栏 ====== -->
+    <aside
+      class="app-sider flex flex-col shrink-0 border-r border-surface-border bg-surface transition-all duration-200"
+      :style="{ width: siderWidth + 'px' }"
     >
-      <div class="sider-inner flex flex-col h-full">
-        <!-- Logo -->
+      <!-- Logo -->
+      <div
+        class="shrink-0 h-12 flex items-center gap-2 px-3 border-b border-surface-border"
+        :class="collapsed ? 'justify-center' : ''"
+      >
+        <div class="w-7 h-7 rounded-lg bg-gradient-to-br from-accent to-accent-dark flex items-center justify-center shrink-0">
+          <Code2 :size="15" />
+        </div>
+        <span v-if="!collapsed" class="font-semibold text-sm whitespace-nowrap">CesiumLearn v2</span>
+      </div>
+
+      <!-- 菜单列表: flex-1 + overflow-y-auto 占满剩余高度 -->
+      <nav class="flex-1 overflow-y-auto py-2 px-2">
+        <!-- 首页 -->
         <div
-          class="sider-logo flex items-center gap-3 px-4 border-b border-surface-border shrink-0"
-          :class="[HEADER_H, collapsed ? 'justify-center' : '']"
+          class="nav-item mb-0.5"
+          :class="{ 'nav-item--active': activeKey === '/' }"
+          @click="go('/')"
         >
-          <div class="w-7 h-7 rounded-lg bg-gradient-to-br from-accent to-accent-dark flex items-center justify-center shrink-0">
-            <Code2 :size="16" />
-          </div>
-          <transition name="fade">
-            <span v-if="!collapsed" class="font-semibold text-sm whitespace-nowrap">
-              CesiumLearn v2
-            </span>
-          </transition>
+          <Home :size="20" />
+          <span v-if="!collapsed" class="ml-3 text-sm">展品集首页</span>
         </div>
 
-        <!-- 导航列表 -->
-        <div class="sider-nav flex-1 overflow-y-auto py-3 px-2">
-          <!-- 首页 -->
+        <!-- 分组 -->
+        <template v-for="group in navGroups" :key="group.label">
           <div
-            class="nav-item mb-1"
-            :class="{ 'nav-item--active': activeKey === '/' }"
-            @click="navigateTo('/')"
-          >
-            <Home :size="20" />
-            <span v-if="!collapsed" class="ml-3 text-sm">展品集首页</span>
-          </div>
-
-          <!-- 分组 -->
-          <template v-for="group in navGroups" :key="group.label">
-            <div
-              class="nav-section-title flex items-center px-3 py-2 text-xs font-semibold text-zinc-500 uppercase tracking-wider"
-              :class="collapsed ? 'justify-center' : ''"
-            >
-              <span v-if="!collapsed">{{ group.label }}</span>
-            </div>
-
-            <div
-              v-for="child in group.children"
-              :key="child.path"
-              class="nav-item"
-              :class="{ 'nav-item--active': activeKey === child.path }"
-              @click="navigateTo(child.path)"
-            >
-              <component :is="group.icon" :size="18" />
-              <span v-if="!collapsed" class="ml-3 text-sm truncate">{{ child.label }}</span>
-            </div>
-          </template>
-        </div>
-
-        <!-- 底部操作 -->
-        <div class="sider-footer border-t border-surface-border p-2 shrink-0">
-          <a
-            href="https://github.com/Mr-fangao/cesium-learn-v2"
-            target="_blank"
-            class="nav-item"
+            class="flex items-center px-3 pt-3 pb-1 text-[11px] font-semibold text-zinc-500 uppercase tracking-wider"
             :class="collapsed ? 'justify-center' : ''"
           >
-            <ExternalLink :size="18" />
-            <span v-if="!collapsed" class="ml-3 text-sm">GitHub</span>
-          </a>
-          <div
-            class="nav-item"
-            :class="collapsed ? 'justify-center' : ''"
-            @click="collapsed = !collapsed"
-          >
-            <component :is="collapsed ? ChevronRight : ChevronLeft" :size="18" />
-            <span v-if="!collapsed" class="ml-3 text-sm text-zinc-500">收起侧栏</span>
+            <span v-if="!collapsed">{{ group.label }}</span>
           </div>
+          <div
+            v-for="child in group.children"
+            :key="child.path"
+            class="nav-item"
+            :class="{ 'nav-item--active': activeKey === child.path }"
+            @click="go(child.path)"
+          >
+            <component :is="group.icon" :size="18" />
+            <span v-if="!collapsed" class="ml-3 text-sm truncate">{{ child.label }}</span>
+          </div>
+        </template>
+      </nav>
+
+      <!-- 底部操作 -->
+      <div class="shrink-0 border-t border-surface-border p-2">
+        <a
+          href="https://github.com/Mr-fangao/cesium-learn-v2"
+          target="_blank"
+          class="nav-item"
+          :class="collapsed ? 'justify-center' : ''"
+        >
+          <ExternalLink :size="18" />
+          <span v-if="!collapsed" class="ml-3 text-sm">GitHub</span>
+        </a>
+        <div
+          class="nav-item mt-0.5"
+          :class="collapsed ? 'justify-center' : ''"
+          @click="collapsed = !collapsed"
+        >
+          <component :is="collapsed ? ChevronRight : ChevronLeft" :size="18" />
+          <span v-if="!collapsed" class="ml-3 text-sm text-zinc-500">收起侧栏</span>
         </div>
       </div>
-    </NLayoutSider>
+    </aside>
 
-    <!-- ========== 右侧内容区 ========== -->
-    <NLayoutContent id="app-content" class="bg-zinc-950">
-      <slot />
-    </NLayoutContent>
-  </NLayout>
+    <!-- ====== 右侧内容区 ====== -->
+    <main class="app-main flex-1 min-w-0 overflow-hidden">
+      <router-view v-slot="{ Component, route: r }">
+        <transition name="page-fade" mode="out-in" appear>
+          <component :is="Component" :key="r.path" />
+        </transition>
+      </router-view>
+    </main>
+  </div>
 </template>
 
 <style scoped>
-/* ---- nav-item — 菜单项通用样式 ---- */
+/* ---- 菜单项 ---- */
 .nav-item {
   display: flex;
   align-items: center;
@@ -172,22 +157,13 @@ function navigateTo(path: string) {
   background: rgba(99, 102, 241, 0.12);
 }
 
-.nav-section-title {
-  letter-spacing: 0.05em;
+/* ---- 页面切换动画 ---- */
+.page-fade-enter-active,
+.page-fade-leave-active {
+  transition: opacity 0.2s ease;
 }
-
-/* ---- transition ---- */
-.fade-enter-active,
-.fade-leave-active {
-  transition: opacity 0.15s ease;
-}
-.fade-enter-from,
-.fade-leave-to {
+.page-fade-enter-from,
+.page-fade-leave-to {
   opacity: 0;
-}
-
-/* ---- 侧栏内部 flex 结构辅助 ---- */
-.sider-inner {
-  min-height: 0;
 }
 </style>

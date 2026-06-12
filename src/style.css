@@ -1,9 +1,9 @@
-/* ============================================================
-   CesiumLearn v2 — Global Styles
-   组织顺序: Tailwind → Cesium → Design Tokens → Base → Naive UI Overrides
-   ============================================================ */
+/*
+ * CesiumLearn v2 — Global Styles
+ * 分层: Tailwind → Cesium → Tokens → Base → Scrollbar → Cesium Internal
+ */
 
-/* ---- 1. Tailwind CSS v4 ---- */
+/* ---- 1. Tailwind ---- */
 @import 'tailwindcss';
 
 /* ---- 2. Cesium Widget CSS ---- */
@@ -22,7 +22,7 @@
   --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
 }
 
-/* ---- 4. Base — 全高度根基 ---- */
+/* ---- 4. Base ---- */
 html,
 body,
 #app {
@@ -32,55 +32,15 @@ body,
 }
 
 /* ---- 5. Scrollbar ---- */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-::-webkit-scrollbar-thumb {
-  background: var(--color-surface-border);
-  border-radius: 3px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: var(--color-accent-dark);
-}
-::selection {
-  background: var(--color-accent-glow);
-  color: #fff;
-}
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--color-surface-border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--color-accent-dark); }
+::selection { background: var(--color-accent-glow); color: #fff; }
 
-/* ---- 6. Naive UI Layout — 高度链修复 ----
-   问题：Naive UI NLayout/NLayoutContent 内部多层 wrapper
-   (n-scrollbar → n-scrollbar-container → n-scrollbar-content)
-   默认不逐层继承 height:100%，导致内容区塌陷。
-   此处用 ID 选择器精准覆盖，不用 !important。
----- */
-#app-layout,
-#app-layout .n-layout,
-#app-layout .n-layout-scroll-container {
-  height: 100%;
-}
-
-/* 侧边栏撑满 */
-#app-sider,
-#app-sider .n-layout-sider-scroll-container {
-  height: 100%;
-}
-
-/* 内容区及内部 scrollbar 链全部撑满 */
-#app-content,
-#app-content .n-scrollbar,
-#app-content .n-scrollbar-container,
-#app-content .n-scrollbar-content {
-  height: 100%;
-  max-height: 100%;
-}
-
-/* ---- 7. Cesium 内部容器高度覆盖 ----
-   Cesium 创建的 .cesium-viewer / .cesium-widget / canvas
-   需要显式 100% 才能填满外层 div ---- */
+/* ---- 6. Cesium 内部容器高度 ----
+   原因：Cesium 创建的 .cesium-viewer / .cesium-widget / canvas
+   默认不继承父容器高度，需要显式设 100% ---- */
 .cesium-host .cesium-viewer,
 .cesium-host .cesium-widget,
 .cesium-host .cesium-widget canvas {
