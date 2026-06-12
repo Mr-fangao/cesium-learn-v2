@@ -38,7 +38,6 @@ const initError = ref<string | null>(null)
 
 /** 用于清理的引用 */
 let resizeObserver: ResizeObserver | null = null
-let initObserver: ResizeObserver | null = null
 
 // ---- helpers ----
 
@@ -148,32 +147,17 @@ function initViewer() {
 }
 
 onMounted(() => {
-  const el = containerRef.value
-  if (!el) return
+  if (!containerRef.value) return
 
-  // 关键修复：等容器有非 0 尺寸再初始化
-  // 路由跳转时 transition 期间容器可能还没完成布局，
-  // ResizeObserver 确保在容器真正有尺寸时才创建 Viewer
-  const rect = el.getBoundingClientRect()
-  if (rect.width > 0 && rect.height > 0) {
-    // 已有尺寸（首次加载或刷新页面），直接初始化
+  // transition mode="out-in" 确保新组件挂载时旧组件已移除，
+  // 容器在此时已有正确的 flex 布局尺寸。
+  // 加一层 requestAnimationFrame 让浏览器完成 paint 后再创建 WebGL 上下文。
+  requestAnimationFrame(() => {
     initViewer()
-  } else {
-    // 容器无尺寸（路由跳转过渡中），等 ResizeObserver 通知
-    initObserver = new ResizeObserver((entries) => {
-      const r = entries[0].contentRect
-      if (r.width > 0 && r.height > 0) {
-        initObserver?.disconnect()
-        initObserver = null
-        initViewer()
-      }
-    })
-    initObserver.observe(el)
-  }
+  })
 })
 
 onUnmounted(() => {
-  initObserver?.disconnect()
   resizeObserver?.disconnect()
   if (viewer.value && !viewer.value.isDestroyed()) {
     viewer.value.destroy()
