@@ -1,12 +1,12 @@
 <script setup lang="ts">
 /**
  * Demo 页面的父路由出口
- * h-full 对应父组件 NLayoutContent 的 100% 高度
+ * 子路由（如 /cesium/hello）通过 router-view 渲染
  */
 </script>
 
 <template>
-  <div class="h-full overflow-hidden">
+  <div class="h-full">
     <router-view v-slot="{ Component, route }">
       <transition name="demo-fade" mode="out-in" appear>
         <component :is="Component" :key="route.path" />
