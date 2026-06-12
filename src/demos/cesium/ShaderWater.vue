@@ -2,20 +2,27 @@
 /**
  * CustomShader — 动态水域
  *
- * TODO: 后续实现
- * 学习要点：
+ * 基于 CesiumViewer 组件，后续会实现：
  * 1. Cesium CustomShader API
  * 2. 片元着色器：水面波纹 + 菲涅尔反射
  * 3. 时间驱动的动画 (czm_frameNumber)
  * 4. 法线扰动与 Fresnel 公式推导
  */
+import CesiumViewer from '@/components/cesium/CesiumViewer.vue'
+
+function onViewerReady(v: Cesium.Viewer) {
+  console.log('[ShaderWater] viewer ready, waiting for implementation')
+}
 </script>
 
 <template>
-  <div class="h-full flex items-center justify-center bg-surface">
-    <div class="text-center text-zinc-500">
-      <p class="text-lg mb-2">🚧 施工中</p>
-      <p class="text-sm">CustomShader 动态水域 Demo 即将上线</p>
+  <div class="h-full flex flex-col min-h-0">
+    <div class="shrink-0 px-6 py-3 bg-surface border-b border-surface-border flex items-center gap-3">
+      <h2 class="font-semibold text-sm">CustomShader — 动态水域</h2>
+      <span class="text-xs text-zinc-500">🚧 施工中 — 基于 CesiumViewer 组件</span>
+    </div>
+    <div class="flex-1 w-full min-h-0">
+      <CesiumViewer imagery="osm" @ready="onViewerReady" />
     </div>
   </div>
 </template>

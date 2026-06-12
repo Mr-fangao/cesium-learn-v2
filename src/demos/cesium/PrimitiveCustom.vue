@@ -2,19 +2,26 @@
 /**
  * 自定义 Primitive 几何体
  *
- * TODO: 后续实现
- * 学习要点：
+ * 基于 CesiumViewer 组件，后续会实现：
  * 1. Geometry + GeometryAttribute 手动构造几何
  * 2. Primitive vs GroundPrimitive 的区别
  * 3. Appearance 和 Material 的关系
  */
+import CesiumViewer from '@/components/cesium/CesiumViewer.vue'
+
+function onViewerReady(v: Cesium.Viewer) {
+  console.log('[PrimitiveCustom] viewer ready, waiting for implementation')
+}
 </script>
 
 <template>
-  <div class="h-full flex items-center justify-center bg-surface">
-    <div class="text-center text-zinc-500">
-      <p class="text-lg mb-2">🚧 施工中</p>
-      <p class="text-sm">自定义 Primitive 几何体 Demo 即将上线</p>
+  <div class="h-full flex flex-col min-h-0">
+    <div class="shrink-0 px-6 py-3 bg-surface border-b border-surface-border flex items-center gap-3">
+      <h2 class="font-semibold text-sm">自定义 Primitive 几何体</h2>
+      <span class="text-xs text-zinc-500">🚧 施工中 — 基于 CesiumViewer 组件</span>
+    </div>
+    <div class="flex-1 w-full min-h-0">
+      <CesiumViewer imagery="osm" @ready="onViewerReady" />
     </div>
   </div>
 </template>
