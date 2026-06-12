@@ -90,6 +90,8 @@ function initViewer() {
     if (v.scene) {
       v.scene.skyAtmosphere.show = props.skyAtmosphere
       v.scene.skyBox.show = props.skyBox
+      // 强制渲染一帧 — 解决路由跳转后场景不绘制的问题
+      v.scene.requestRender()
     }
     if (!props.showCredit && v.cesiumWidget) {
       v.cesiumWidget.creditContainer.style.display = 'none'

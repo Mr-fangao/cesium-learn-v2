@@ -31,10 +31,18 @@ function onViewerReady(v: Cesium.Viewer) {
 /**
  * 在地球上添加演示标记
  */
+/**
+ * LabelStyle 枚举值 (Cesium 1.111):
+ *   FILL: 0, OUTLINE: 1, FILL_AND_OUTLINE: 2
+ * VerticalOrigin:
+ *   CENTER: 0, BOTTOM: 1, BASELINE: 2, TOP: -1
+ */
+const FILL_AND_OUTLINE = 2
+const VERTICAL_ORIGIN_BOTTOM = 1
+
 function addDemoEntities(v: Cesium.Viewer) {
   const C = window.Cesium
 
-  // ---- 北京标记 ----
   v.entities.add({
     name: '北京',
     position: C.Cartesian3.fromDegrees(116.397, 39.909),
@@ -50,13 +58,12 @@ function addDemoEntities(v: Cesium.Viewer) {
       fillColor: C.Color.WHITE,
       outlineColor: C.Color.fromCssColorString('#1e1b4b'),
       outlineWidth: 3,
-      style: C.LabelStyle?.FILL_AND_OUTLINE ?? 1,
-      verticalOrigin: C.VerticalOrigin?.BOTTOM ?? 1,
+      style: FILL_AND_OUTLINE,
+      verticalOrigin: VERTICAL_ORIGIN_BOTTOM,
       pixelOffset: new C.Cartesian2(0, -16),
     },
   })
 
-  // ---- 上海标记 ----
   v.entities.add({
     name: '上海',
     position: C.Cartesian3.fromDegrees(121.473, 31.23),
@@ -72,13 +79,12 @@ function addDemoEntities(v: Cesium.Viewer) {
       fillColor: C.Color.WHITE,
       outlineColor: C.Color.fromCssColorString('#064e3b'),
       outlineWidth: 3,
-      style: C.LabelStyle?.FILL_AND_OUTLINE ?? 1,
-      verticalOrigin: C.VerticalOrigin?.BOTTOM ?? 1,
+      style: FILL_AND_OUTLINE,
+      verticalOrigin: VERTICAL_ORIGIN_BOTTOM,
       pixelOffset: new C.Cartesian2(0, -14),
     },
   })
 
-  // ---- 飞行航线 ----
   v.entities.add({
     name: '北京-上海航线',
     polyline: {

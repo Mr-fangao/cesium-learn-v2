@@ -128,14 +128,7 @@ function go(p: string) {
     <!-- ====== 右侧内容区 ====== -->
     <main class="app-main flex-1 min-w-0 overflow-hidden">
       <router-view v-slot="{ Component, route: r }">
-        <!--
-          mode="out-in": 旧页面先完全离开，再挂载新页面。
-          新页面进入时不设 opacity 过渡（只淡出旧页面），
-          确保 Cesium WebGL 容器挂载时就是 opacity:1。
-        -->
-        <transition name="page-fade" mode="out-in">
-          <component :is="Component" :key="r.path" />
-        </transition>
+        <component :is="Component" :key="r.path" />
       </router-view>
     </main>
   </div>
@@ -160,15 +153,5 @@ function go(p: string) {
 .nav-item--active {
   color: #818cf8;
   background: rgba(99, 102, 241, 0.12);
-}
-
-/* ---- 页面切换动画 ----
-   只淡出旧页面，新页面进入时直接显示。
-   原因：Cesium 在 opacity:0 的元素上创建 WebGL 上下文会失败。 ---- */
-.page-fade-leave-active {
-  transition: opacity 0.15s ease;
-}
-.page-fade-leave-to {
-  opacity: 0;
 }
 </style>
