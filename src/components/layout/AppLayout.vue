@@ -15,24 +15,19 @@ import {
 
 const router = useRouter()
 const route = useRoute()
-
-/** 侧边栏收折状态 */
 const collapsed = ref(false)
-
-/** 侧边栏宽度 */
 const siderWidth = computed(() => (collapsed.value ? 64 : 240))
 
-/** 导航菜单项 */
-interface NavItem {
+/** 统一的 header 高度 — 侧栏 Logo 和所有 Demo 页顶栏对齐 */
+const HEADER_H = 'h-12'
+
+interface NavGroup {
   label: string
   icon: any
-  children: {
-    label: string
-    path: string
-  }[]
+  children: { label: string; path: string }[]
 }
 
-const navItems: NavItem[] = [
+const navGroups: NavGroup[] = [
   {
     label: 'Cesium',
     icon: Globe,
@@ -58,117 +53,106 @@ const navItems: NavItem[] = [
   },
 ]
 
-/** 当前激活的菜单项 */
 const activeKey = computed(() => route.path)
 
-/** 导航到指定路径 */
 function navigateTo(path: string) {
   router.push(path)
 }
 </script>
 
 <template>
-  <NLayout class="h-full" has-sider>
-    <!-- 侧边栏 -->
+  <NLayout id="app-layout" has-sider>
+    <!-- ========== 侧边栏 ========== -->
     <NLayoutSider
+      id="app-sider"
       bordered
       :collapsed="collapsed"
       :width="siderWidth"
       :native-scrollbar="false"
-      class="bg-surface border-r border-surface-border flex flex-col"
+      class="bg-surface border-r border-surface-border"
     >
-      <!-- Logo 区域 -->
-      <div
-        class="flex items-center gap-3 px-4 h-16 border-b border-surface-border shrink-0"
-        :class="collapsed ? 'justify-center' : ''"
-      >
+      <div class="sider-inner flex flex-col h-full">
+        <!-- Logo -->
         <div
-          class="w-9 h-9 rounded-lg bg-gradient-to-br from-accent to-accent-dark flex items-center justify-center text-white font-bold text-sm shrink-0"
+          class="sider-logo flex items-center gap-3 px-4 border-b border-surface-border shrink-0"
+          :class="[HEADER_H, collapsed ? 'justify-center' : '']"
         >
-          <Code2 :size="18" />
-        </div>
-        <transition name="fade">
-          <span
-            v-if="!collapsed"
-            class="font-semibold text-base whitespace-nowrap"
-          >
-            CesiumLearn v2
-          </span>
-        </transition>
-      </div>
-
-      <!-- 导航菜单 -->
-      <div class="flex-1 overflow-y-auto py-3 px-2">
-        <!-- 首页入口 -->
-        <div
-          class="nav-item mb-2"
-          :class="{ active: activeKey === '/' }"
-          @click="navigateTo('/')"
-        >
-          <Home :size="20" />
-          <span v-if="!collapsed" class="ml-3 text-sm">展品集首页</span>
+          <div class="w-7 h-7 rounded-lg bg-gradient-to-br from-accent to-accent-dark flex items-center justify-center shrink-0">
+            <Code2 :size="16" />
+          </div>
+          <transition name="fade">
+            <span v-if="!collapsed" class="font-semibold text-sm whitespace-nowrap">
+              CesiumLearn v2
+            </span>
+          </transition>
         </div>
 
-        <!-- 分类导航 -->
-        <div v-for="group in navItems" :key="group.label" class="mb-1">
-          <!-- 分类标题 -->
+        <!-- 导航列表 -->
+        <div class="sider-nav flex-1 overflow-y-auto py-3 px-2">
+          <!-- 首页 -->
           <div
-            class="flex items-center px-3 py-2 text-xs font-semibold text-zinc-500 uppercase tracking-wider"
+            class="nav-item mb-1"
+            :class="{ 'nav-item--active': activeKey === '/' }"
+            @click="navigateTo('/')"
+          >
+            <Home :size="20" />
+            <span v-if="!collapsed" class="ml-3 text-sm">展品集首页</span>
+          </div>
+
+          <!-- 分组 -->
+          <template v-for="group in navGroups" :key="group.label">
+            <div
+              class="nav-section-title flex items-center px-3 py-2 text-xs font-semibold text-zinc-500 uppercase tracking-wider"
+              :class="collapsed ? 'justify-center' : ''"
+            >
+              <span v-if="!collapsed">{{ group.label }}</span>
+            </div>
+
+            <div
+              v-for="child in group.children"
+              :key="child.path"
+              class="nav-item"
+              :class="{ 'nav-item--active': activeKey === child.path }"
+              @click="navigateTo(child.path)"
+            >
+              <component :is="group.icon" :size="18" />
+              <span v-if="!collapsed" class="ml-3 text-sm truncate">{{ child.label }}</span>
+            </div>
+          </template>
+        </div>
+
+        <!-- 底部操作 -->
+        <div class="sider-footer border-t border-surface-border p-2 shrink-0">
+          <a
+            href="https://github.com/Mr-fangao/cesium-learn-v2"
+            target="_blank"
+            class="nav-item"
             :class="collapsed ? 'justify-center' : ''"
           >
-            <transition name="fade">
-              <span v-if="!collapsed">{{ group.label }}</span>
-            </transition>
-          </div>
-
-          <!-- 子项 -->
+            <ExternalLink :size="18" />
+            <span v-if="!collapsed" class="ml-3 text-sm">GitHub</span>
+          </a>
           <div
-            v-for="child in group.children"
-            :key="child.path"
             class="nav-item"
-            :class="{ active: activeKey === child.path }"
-            @click="navigateTo(child.path)"
+            :class="collapsed ? 'justify-center' : ''"
+            @click="collapsed = !collapsed"
           >
-            <component :is="group.icon" :size="18" />
-            <span v-if="!collapsed" class="ml-3 text-sm truncate">
-              {{ child.label }}
-            </span>
+            <component :is="collapsed ? ChevronRight : ChevronLeft" :size="18" />
+            <span v-if="!collapsed" class="ml-3 text-sm text-zinc-500">收起侧栏</span>
           </div>
-        </div>
-      </div>
-
-      <!-- 底部操作区 -->
-      <div class="border-t border-surface-border p-2">
-        <a
-          href="https://github.com/Mr-fangao/cesium-learn-v2"
-          target="_blank"
-          class="nav-item"
-          :class="collapsed ? 'justify-center' : ''"
-        >
-          <ExternalLink :size="18" />
-          <span v-if="!collapsed" class="ml-3 text-sm">GitHub</span>
-        </a>
-        <div
-          class="nav-item"
-          :class="collapsed ? 'justify-center' : ''"
-          @click="collapsed = !collapsed"
-        >
-          <component :is="collapsed ? ChevronRight : ChevronLeft" :size="18" />
-          <span v-if="!collapsed" class="ml-3 text-sm text-zinc-500">
-            收起侧栏
-          </span>
         </div>
       </div>
     </NLayoutSider>
 
-    <!-- 主内容区 -->
-    <NLayoutContent class="bg-zinc-950">
+    <!-- ========== 右侧内容区 ========== -->
+    <NLayoutContent id="app-content" class="bg-zinc-950">
       <slot />
     </NLayoutContent>
   </NLayout>
 </template>
 
 <style scoped>
+/* ---- nav-item — 菜单项通用样式 ---- */
 .nav-item {
   display: flex;
   align-items: center;
@@ -183,11 +167,16 @@ function navigateTo(path: string) {
   color: #f4f4f5;
   background: #27272a;
 }
-.nav-item.active {
+.nav-item--active {
   color: #818cf8;
   background: rgba(99, 102, 241, 0.12);
 }
 
+.nav-section-title {
+  letter-spacing: 0.05em;
+}
+
+/* ---- transition ---- */
 .fade-enter-active,
 .fade-leave-active {
   transition: opacity 0.15s ease;
@@ -195,5 +184,10 @@ function navigateTo(path: string) {
 .fade-enter-from,
 .fade-leave-to {
   opacity: 0;
+}
+
+/* ---- 侧栏内部 flex 结构辅助 ---- */
+.sider-inner {
+  min-height: 0;
 }
 </style>

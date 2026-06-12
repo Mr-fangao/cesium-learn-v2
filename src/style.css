@@ -1,36 +1,28 @@
-/* ============================================
-   Tailwind CSS v4 — 原子化样式层
-   ============================================ */
+/* ============================================================
+   CesiumLearn v2 — Global Styles
+   组织顺序: Tailwind → Cesium → Design Tokens → Base → Naive UI Overrides
+   ============================================================ */
+
+/* ---- 1. Tailwind CSS v4 ---- */
 @import 'tailwindcss';
 
-/* ============================================
-   Cesium 官方 CSS（Widget 控件样式）
-   ============================================ */
+/* ---- 2. Cesium Widget CSS ---- */
 @import 'cesium/Build/Cesium/Widgets/widgets.css';
 
-/* ============================================
-   自定义设计 Token（CSS 变量）
-   ============================================ */
+/* ---- 3. Design Tokens ---- */
 @theme {
-  /* 主色调 — 科技蓝紫渐变 */
   --color-accent: #6366f1;
   --color-accent-light: #818cf8;
   --color-accent-dark: #4f46e5;
   --color-accent-glow: rgba(99, 102, 241, 0.4);
-
-  /* 表面色 */
   --color-surface: #18181b;
   --color-surface-hover: #27272a;
   --color-surface-border: #3f3f46;
-
-  /* 字体 */
   --font-sans: 'Inter', 'SF Pro Display', system-ui, sans-serif;
   --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
 }
 
-/* ============================================
-   全局基础样式
-   ============================================ */
+/* ---- 4. Base — 全高度根基 ---- */
 html,
 body,
 #app {
@@ -39,7 +31,7 @@ body,
   overflow: hidden;
 }
 
-/* 滚动条美化 */
+/* ---- 5. Scrollbar ---- */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -54,9 +46,44 @@ body,
 ::-webkit-scrollbar-thumb:hover {
   background: var(--color-accent-dark);
 }
-
-/* 选中色 */
 ::selection {
   background: var(--color-accent-glow);
   color: #fff;
+}
+
+/* ---- 6. Naive UI Layout — 高度链修复 ----
+   问题：Naive UI NLayout/NLayoutContent 内部多层 wrapper
+   (n-scrollbar → n-scrollbar-container → n-scrollbar-content)
+   默认不逐层继承 height:100%，导致内容区塌陷。
+   此处用 ID 选择器精准覆盖，不用 !important。
+---- */
+#app-layout,
+#app-layout .n-layout,
+#app-layout .n-layout-scroll-container {
+  height: 100%;
+}
+
+/* 侧边栏撑满 */
+#app-sider,
+#app-sider .n-layout-sider-scroll-container {
+  height: 100%;
+}
+
+/* 内容区及内部 scrollbar 链全部撑满 */
+#app-content,
+#app-content .n-scrollbar,
+#app-content .n-scrollbar-container,
+#app-content .n-scrollbar-content {
+  height: 100%;
+  max-height: 100%;
+}
+
+/* ---- 7. Cesium 内部容器高度覆盖 ----
+   Cesium 创建的 .cesium-viewer / .cesium-widget / canvas
+   需要显式 100% 才能填满外层 div ---- */
+.cesium-host .cesium-viewer,
+.cesium-host .cesium-widget,
+.cesium-host .cesium-widget canvas {
+  width: 100% !important;
+  height: 100% !important;
 }

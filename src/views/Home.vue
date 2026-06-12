@@ -90,7 +90,8 @@ function goTo(route: string) {
 </script>
 
 <template>
-  <div class="h-full overflow-y-auto">
+  <!-- page-home: 首页根容器 — h-full 继承父高度, overflow-auto 支持双向滚动 -->
+  <div class="page-home h-full overflow-auto">
     <!-- ============================================================
          Hero 区域 — 渐变背景 + 动态光效
          ============================================================ -->
@@ -223,15 +224,15 @@ function goTo(route: string) {
         </span>
       </div>
 
-      <!-- 三栏卡片 -->
+      <!-- 三栏卡片 — grid-cols 按 6:3:1 比例，min-w-0 允许收缩防横向溢出 -->
       <div
-        class="grid gap-5"
+        class="cards-grid grid gap-5"
         style="grid-template-columns: 6fr 3fr 1fr"
       >
         <div
           v-for="(card, i) in techCards"
           :key="card.title"
-          class="group relative rounded-2xl border border-surface-border bg-surface/80 backdrop-blur-sm hover:scale-[1.02] hover:border-accent/30 transition-all duration-400 overflow-hidden cursor-pointer"
+          class="group relative rounded-2xl border border-surface-border bg-surface/80 backdrop-blur-sm hover:scale-[1.02] hover:border-accent/30 transition-all duration-400 overflow-hidden cursor-pointer min-w-0"
           :class="[
             mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10',
             `hover:${card.borderGlow}`,
@@ -382,9 +383,9 @@ function goTo(route: string) {
 </template>
 
 <style scoped>
-/* 响应式 */
+/* 响应式：窄屏 → 卡片单列 */
 @media (max-width: 900px) {
-  .grid {
+  .cards-grid {
     grid-template-columns: 1fr !important;
   }
   h1 {

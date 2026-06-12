@@ -103,10 +103,10 @@ function flyTo(lon: number, lat: number, height: number) {
 </script>
 
 <template>
-  <div class="h-full flex flex-col min-h-0">
-    <!-- 顶部工具栏 -->
+  <div class="demo-page h-full flex flex-col min-h-0">
+    <!-- 顶部工具栏 — h-12 与侧栏 Logo 高度对齐 -->
     <div
-      class="shrink-0 px-6 py-3 bg-surface border-b border-surface-border flex items-center gap-4"
+      class="demo-header shrink-0 h-12 px-6 border-b border-surface-border flex items-center gap-3 bg-surface"
     >
       <h2 class="font-semibold text-sm">Hello Cesium — 地球初始化</h2>
 
@@ -144,8 +144,8 @@ function flyTo(lon: number, lat: number, height: number) {
       </div>
     </div>
 
-    <!-- Cesium 场景 — relative + flex-1 让 absolute inset-0 的 CesiumViewer 正确填充 -->
-    <div class="flex-1 w-full relative min-h-0">
+    <!-- Cesium 场景区域 — flex-1 填充剩余高度 -->
+    <div class="demo-stage flex-1 w-full relative min-h-0">
       <CesiumViewer
         imagery="osm"
         :initial-position="[116.397, 39.909, 10_000_000]"
