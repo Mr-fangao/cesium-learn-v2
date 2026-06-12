@@ -1,0 +1,62 @@
+/* ============================================
+   Tailwind CSS v4 — 原子化样式层
+   ============================================ */
+@import 'tailwindcss';
+
+/* ============================================
+   Cesium 官方 CSS（Widget 控件样式）
+   ============================================ */
+@import 'cesium/Build/Cesium/Widgets/widgets.css';
+
+/* ============================================
+   自定义设计 Token（CSS 变量）
+   ============================================ */
+@theme {
+  /* 主色调 — 科技蓝紫渐变 */
+  --color-accent: #6366f1;
+  --color-accent-light: #818cf8;
+  --color-accent-dark: #4f46e5;
+  --color-accent-glow: rgba(99, 102, 241, 0.4);
+
+  /* 表面色 */
+  --color-surface: #18181b;
+  --color-surface-hover: #27272a;
+  --color-surface-border: #3f3f46;
+
+  /* 字体 */
+  --font-sans: 'Inter', 'SF Pro Display', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+}
+
+/* ============================================
+   全局基础样式
+   ============================================ */
+html,
+body,
+#app {
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+}
+
+/* 滚动条美化 */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-surface-border);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-accent-dark);
+}
+
+/* 选中色 */
+::selection {
+  background: var(--color-accent-glow);
+  color: #fff;
+}
