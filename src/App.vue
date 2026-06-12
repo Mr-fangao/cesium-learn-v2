@@ -23,16 +23,22 @@ const themeOverrides: GlobalThemeOverrides = {
 </script>
 
 <template>
-  <n-config-provider
-    :theme="darkTheme"
-    :theme-overrides="themeOverrides"
-    :locale="zhCN"
-  >
-    <n-message-provider>
-      <n-dialog-provider>
-        <!-- AppLayout 内部已包含 router-view -->
-        <AppLayout />
-      </n-dialog-provider>
-    </n-message-provider>
-  </n-config-provider>
+  <!--
+    app-root: html→body→#app 是 100% 高度，
+    但 Naive UI n-config-provider 等组件默认不继承高度。
+    这里包一层 h-full div，确保高度链条不断。
+  -->
+  <div class="app-root h-full">
+    <n-config-provider
+      :theme="darkTheme"
+      :theme-overrides="themeOverrides"
+      :locale="zhCN"
+    >
+      <n-message-provider>
+        <n-dialog-provider>
+          <AppLayout />
+        </n-dialog-provider>
+      </n-message-provider>
+    </n-config-provider>
+  </div>
 </template>

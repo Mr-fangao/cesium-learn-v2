@@ -31,6 +31,16 @@ body,
   overflow: hidden;
 }
 
+/*
+ * Naive UI provider 组件（n-config-provider 等）根 div 默认不继承高度。
+ * app-root（在 App.vue 中）显式设 h-full，这里确保 provider 层不断开链条。
+ */
+.n-config-provider,
+.n-message-provider,
+.n-dialog-provider {
+  height: 100%;
+}
+
 /* ---- 5. Scrollbar ---- */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
