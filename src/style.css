@@ -1,15 +1,6 @@
-/*
- * CesiumLearn v2 — Global Styles
- * 分层: Tailwind → Cesium → Tokens → Base → Scrollbar → Cesium Internal
- */
-
-/* ---- 1. Tailwind ---- */
 @import 'tailwindcss';
-
-/* ---- 2. Cesium Widget CSS ---- */
 @import 'cesium/Build/Cesium/Widgets/widgets.css';
 
-/* ---- 3. Design Tokens ---- */
 @theme {
   --color-accent: #6366f1;
   --color-accent-light: #818cf8;
@@ -22,35 +13,19 @@
   --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
 }
 
-/* ---- 4. Base ---- */
-html,
-body,
-#app {
-  height: 100%;
-  margin: 0;
-  overflow: hidden;
-}
+html, body, #app { height: 100%; margin: 0; overflow: hidden; }
 
-/*
- * Naive UI provider 组件（n-config-provider 等）根 div 默认不继承高度。
- * app-root（在 App.vue 中）显式设 h-full，这里确保 provider 层不断开链条。
- */
-.n-config-provider,
-.n-message-provider,
-.n-dialog-provider {
-  height: 100%;
-}
+/* Naive UI provider 高度链 */
+.n-config-provider, .n-message-provider, .n-dialog-provider { height: 100%; }
 
-/* ---- 5. Scrollbar ---- */
+/* 滚动条 */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--color-surface-border); border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--color-accent-dark); }
 ::selection { background: var(--color-accent-glow); color: #fff; }
 
-/* ---- 6. Cesium 内部容器高度 ----
-   原因：Cesium 创建的 .cesium-viewer / .cesium-widget / canvas
-   默认不继承父容器高度，需要显式设 100% ---- */
+/* Cesium 内部 DOM 高度 */
 .cesium-host .cesium-viewer,
 .cesium-host .cesium-widget,
 .cesium-host .cesium-widget canvas {

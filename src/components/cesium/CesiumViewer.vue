@@ -1,11 +1,5 @@
 <script setup lang="ts">
-/**
- * CesiumViewer — Cesium 基础组件
- *
- * 等父容器有实际尺寸后才初始化 Viewer，解决路由跳转时容器可能为 0 的问题。
- */
-
-import { ref, onMounted, onUnmounted, useTemplateRef } from 'vue'
+import { ref, onMounted, onUnmounted, nextTick, useTemplateRef } from 'vue'
 
 const props = withDefaults(
   defineProps<{
@@ -35,42 +29,36 @@ const containerRef = useTemplateRef<HTMLDivElement>('container')
 const viewer = ref<Cesium.Viewer | null>(null)
 const isReady = ref(false)
 const initError = ref<string | null>(null)
-
-/** 用于清理的引用 */
 let resizeObserver: ResizeObserver | null = null
-
-// ---- helpers ----
 
 function makeImageryProvider(C: any) {
   switch (props.imagery) {
     case 'osm':
       return new C.OpenStreetMapImageryProvider({ maximumLevel: 18 })
     case 'ion': {
-      const t = props.accessToken || C.Ion?.defaultAccessToken
-      if (t) { C.Ion.defaultAccessToken = t; return C.IonImageryProvider?.fromAssetId?.(2) }
+      const token = props.accessToken || C.Ion?.defaultAccessToken
+      if (token) { C.Ion.defaultAccessToken = token; return C.IonImageryProvider?.fromAssetId?.(2) }
       return new C.OpenStreetMapImageryProvider({ maximumLevel: 18 })
     }
     case 'bing':
       return props.accessToken
         ? new C.BingMapsImageryProvider({ url: 'https://dev.virtualearth.net', key: props.accessToken })
         : new C.OpenStreetMapImageryProvider({ maximumLevel: 18 })
-    default:
-      return undefined
+    default: return undefined
   }
 }
 
 function makeTerrainProvider(C: any) {
   if (props.terrain === 'ion') {
-    const t = props.accessToken || C.Ion?.defaultAccessToken
-    if (t) return C.createWorldTerrain?.() ?? new C.EllipsoidTerrainProvider()
+    const token = props.accessToken || C.Ion?.defaultAccessToken
+    if (token) return C.createWorldTerrain?.() ?? new C.EllipsoidTerrainProvider()
   }
   return props.terrain === 'ellipsoid' ? new C.EllipsoidTerrainProvider() : undefined
 }
 
-function fillDomHeight(v: Cesium.Viewer) {
+function forceHeight(v: Cesium.Viewer) {
   const el = v.container as HTMLElement
-  el.style.width = '100%'
-  el.style.height = '100%'
+  el.style.width = '100%'; el.style.height = '100%'
   const ve = el.querySelector('.cesium-viewer') as HTMLElement | null
   const we = el.querySelector('.cesium-widget') as HTMLElement | null
   const cv = v.canvas as HTMLElement | null
@@ -78,8 +66,6 @@ function fillDomHeight(v: Cesium.Viewer) {
   if (we) { we.style.width = '100%'; we.style.height = '100%' }
   if (cv) { cv.style.width = '100%'; cv.style.height = '100%' }
 }
-
-// ---- 初始化（等容器有尺寸后执行） ----
 
 function initViewer() {
   const el = containerRef.value
@@ -99,16 +85,11 @@ function initViewer() {
       imageryProvider: makeImageryProvider(C),
       terrainProvider: makeTerrainProvider(C),
       sceneMode: sm[props.sceneMode] ?? 1,
-      animation: false,
-      timeline: false,
-      baseLayerPicker: false,
-      fullscreenButton: false,
-      homeButton: false,
-      sceneModePicker: false,
-      navigationHelpButton: false,
-      geocoder: false,
-      selectionIndicator: false,
-      infoBox: false,
+      animation: false, timeline: false,
+      baseLayerPicker: false, fullscreenButton: false,
+      homeButton: false, sceneModePicker: false,
+      navigationHelpButton: false, geocoder: false,
+      selectionIndicator: false, infoBox: false,
     })
 
     if (v.scene) {
@@ -119,18 +100,14 @@ function initViewer() {
       v.cesiumWidget.creditContainer.style.display = 'none'
     }
 
-    fillDomHeight(v)
+    forceHeight(v)
 
-    // resize 监听
-    const doResize = () => {
-      if (v && !v.isDestroyed()) { fillDomHeight(v); v.resize() }
-    }
+    const doResize = () => { if (v && !v.isDestroyed()) { forceHeight(v); v.resize() } }
     resizeObserver = new ResizeObserver(() => doResize())
     resizeObserver.observe(el)
     setTimeout(() => doResize(), 50)
     setTimeout(() => doResize(), 300)
 
-    // 相机
     const [lon, lat, h] = props.initialPosition
     v.camera.flyTo({
       destination: C.Cartesian3.fromDegrees(lon, lat, h),
@@ -146,12 +123,10 @@ function initViewer() {
   }
 }
 
-onMounted(() => {
+onMounted(async () => {
   if (!containerRef.value) return
-
-  // transition mode="out-in" 确保新组件挂载时旧组件已移除，
-  // 容器在此时已有正确的 flex 布局尺寸。
-  // 加一层 requestAnimationFrame 让浏览器完成 paint 后再创建 WebGL 上下文。
+  // nextTick: Vue DOM 刷新 → requestAnimationFrame: 浏览器布局完成 → 初始化 WebGL
+  await nextTick()
   requestAnimationFrame(() => {
     initViewer()
   })
@@ -159,9 +134,7 @@ onMounted(() => {
 
 onUnmounted(() => {
   resizeObserver?.disconnect()
-  if (viewer.value && !viewer.value.isDestroyed()) {
-    viewer.value.destroy()
-  }
+  if (viewer.value && !viewer.value.isDestroyed()) viewer.value.destroy()
 })
 
 defineExpose({ viewer, isReady })
@@ -171,7 +144,6 @@ defineExpose({ viewer, isReady })
   <div class="cesium-viewer-root h-full w-full relative">
     <div ref="container" class="cesium-host h-full w-full" />
 
-    <!-- 错误 -->
     <div v-if="initError" class="absolute inset-0 z-20 flex items-center justify-center bg-zinc-950/90">
       <div class="text-center max-w-md px-4">
         <p class="text-red-400 font-semibold mb-2">Cesium 初始化失败</p>
@@ -179,7 +151,6 @@ defineExpose({ viewer, isReady })
       </div>
     </div>
 
-    <!-- 加载 -->
     <div v-else-if="!isReady" class="absolute inset-0 z-10 flex items-center justify-center bg-zinc-950">
       <div class="flex flex-col items-center gap-3">
         <div class="w-8 h-8 border-2 border-accent border-t-transparent rounded-full animate-spin" />
