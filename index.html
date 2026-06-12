@@ -5,7 +5,13 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>CesiumLearn v2 — 3D 技术学习展品集</title>
-    <!-- Cesium 全局脚本：IIFE 执行后 window.Cesium 可用 -->
+    <!--
+      Cesium 加载前必须设置 CESIUM_BASE_URL，
+      否则 Worker 路径默认指向 /，导致地形/影像加载失败
+    -->
+    <script>
+      window.CESIUM_BASE_URL = '/Cesium/'
+    </script>
     <script src="/Cesium/Cesium.js"></script>
   </head>
   <body class="bg-zinc-950 text-zinc-100">
