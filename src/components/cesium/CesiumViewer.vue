@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, watch, onMounted, onUnmounted, nextTick } from 'vue'
 
 const props = withDefaults(
   defineProps<{
-    imagery?: 'osm' | 'ion' | 'bing' | 'none'
+    imagery?: 'tianditu' | 'ion' | 'bing' | 'none'
+    tiandituStyle?: 'vector' | 'image'
     terrain?: 'ellipsoid' | 'ion' | 'none'
     accessToken?: string
     initialPosition?: [number, number, number]
@@ -13,7 +14,8 @@ const props = withDefaults(
     skyBox?: boolean
   }>(),
   {
-    imagery: 'osm',
+    imagery: 'tianditu',
+    tiandituStyle: 'image',
     terrain: 'ellipsoid',
     initialPosition: () => [116.397, 39.909, 10_000_000],
     showCredit: false,
@@ -31,22 +33,64 @@ const viewer = ref<Cesium.Viewer | null>(null)
 const isReady = ref(false)
 const initError = ref<string | null>(null)
 let resizeObserver: ResizeObserver | null = null
+let currentBaseLayer: any = null
+let currentLabelLayer: any = null
+
+/** 天地图 Token，从环境变量读取 */
+const TIANDITU_TOKEN = import.meta.env.VITE_TIANDITU_TOKEN as string
+
+/** 创建天地图影像 Provider */
+type TiandituLayer = 'vec_w' | 'cva_w' | 'img_w' | 'cia_w'
+
+function makeTiandituProvider(C: any, layer: TiandituLayer) {
+  return new C.UrlTemplateImageryProvider({
+    url: `https://t{s}.tianditu.gov.cn/DataServer?T=${layer}&x={x}&y={y}&l={z}&tk=${TIANDITU_TOKEN}`,
+    subdomains: ['0', '1', '2', '3', '4', '5', '6', '7'],
+    minimumLevel: 1,
+    maximumLevel: 16,
+  })
+}
 
 function makeImageryProvider(C: any) {
   switch (props.imagery) {
-    case 'osm':
-      return new C.OpenStreetMapImageryProvider({ maximumLevel: 18 })
+    case 'tianditu': {
+      // 天地图走 imageryLayers 添加，不走构造函数
+      return false
+    }
     case 'ion': {
       const token = props.accessToken || C.Ion?.defaultAccessToken
       if (token) { C.Ion.defaultAccessToken = token; return C.IonImageryProvider?.fromAssetId?.(2) }
-      return new C.OpenStreetMapImageryProvider({ maximumLevel: 18 })
+      // 无 Ion Token → 退回天地图
+      if (TIANDITU_TOKEN && TIANDITU_TOKEN !== 'your_token_here') return false
+      return undefined
     }
     case 'bing':
       return props.accessToken
         ? new C.BingMapsImageryProvider({ url: 'https://dev.virtualearth.net', key: props.accessToken })
-        : new C.OpenStreetMapImageryProvider({ maximumLevel: 18 })
+        : (TIANDITU_TOKEN && TIANDITU_TOKEN !== 'your_token_here')
+          ? false
+          : undefined
     default: return undefined
   }
+}
+
+/** 更新天地图图层（支持动态切换矢量/影像） */
+function applyTiandituLayers(C: any, v: Cesium.Viewer) {
+  const isVector = props.tiandituStyle === 'vector'
+
+  // 移除旧图层
+  if (currentBaseLayer) { v.imageryLayers.remove(currentBaseLayer); currentBaseLayer = null }
+  if (currentLabelLayer) { v.imageryLayers.remove(currentLabelLayer); currentLabelLayer = null }
+
+  // 添加新图层
+  currentBaseLayer = v.imageryLayers.addImageryProvider(
+    makeTiandituProvider(C, isVector ? 'vec_w' : 'img_w'),
+  )
+  currentLabelLayer = v.imageryLayers.addImageryProvider(
+    makeTiandituProvider(C, isVector ? 'cva_w' : 'cia_w'),
+  )
+
+  v.scene.requestRender()
 }
 
 function makeTerrainProvider(C: any) {
@@ -76,8 +120,17 @@ function initViewer() {
     const C = window.Cesium
     if (!C) throw new Error('window.Cesium 未加载')
 
+    // 天地图 Token 缺失时给出明确提示
+    if (props.imagery === 'tianditu' && (!TIANDITU_TOKEN || TIANDITU_TOKEN === 'your_token_here')) {
+      throw new Error('天地图 Token 未配置，请在 .env 中设置 VITE_TIANDITU_TOKEN（申请地址: https://console.tianditu.gov.cn/）')
+    }
+
+    const imageryProvider = makeImageryProvider(C)
+    // 当 makeImageryProvider 返回 false 时，表示要通过 imageryLayers 手动添加底图
+    const useManualImagery = imageryProvider === false
+
     const v = new C.Viewer(el, {
-      imageryProvider: makeImageryProvider(C),
+      imageryProvider: useManualImagery ? undefined : imageryProvider,
       terrainProvider: makeTerrainProvider(C),
       sceneMode: (C.SceneMode?.SCENE3D ?? 1),
       animation: false, timeline: false,
@@ -86,6 +139,11 @@ function initViewer() {
       navigationHelpButton: false, geocoder: false,
       selectionIndicator: false, infoBox: false,
     })
+
+    // 天地图：底图 + 注记（通过 imageryLayers 添加，确保瓦片请求正确触发）
+    if (useManualImagery) {
+      applyTiandituLayers(C, v)
+    }
 
     if (v.scene) {
       v.scene.skyAtmosphere.show = props.skyAtmosphere
@@ -119,6 +177,17 @@ function initViewer() {
     console.error('[CesiumViewer]', e)
   }
 }
+
+// 监听样式切换，动态更新图层
+watch(() => props.tiandituStyle, () => {
+  const v = viewer.value
+  if (!v || v.isDestroyed()) return
+  const C = window.Cesium
+  if (!C) return
+  // 仅天地图模式下响应
+  if (props.imagery !== 'tianditu') return
+  applyTiandituLayers(C, v)
+})
 
 onMounted(async () => {
   if (!container.value) return

@@ -6,9 +6,11 @@
  * 1. 引入 CesiumViewer → @ready 获取 viewer 实例
  * 2. Entity API 添加标记点/标签/多边形
  * 3. 相机控制（flyTo）
+ * 4. lil-gui 控制面板（底图样式切换）
  */
 
-import { ref } from 'vue'
+import { ref, onUnmounted } from 'vue'
+import { GUI } from 'lil-gui'
 import CesiumViewer from '@/components/cesium/CesiumViewer.vue'
 
 /** Viewer 就绪状态 */
@@ -17,6 +19,12 @@ const viewerReady = ref(false)
 /** 当前 viewer 实例 */
 let viewer: Cesium.Viewer | null = null
 
+/** 天地图底图样式 */
+const tiandituStyle = ref<'vector' | 'image'>('image')
+
+/** dat.GUI 实例 */
+let gui: GUI | null = null
+
 /**
  * Viewer 就绪回调 — 拿到 viewer 后添加业务内容
  */
@@ -24,8 +32,28 @@ function onViewerReady(v: Cesium.Viewer) {
   viewer = v
   viewerReady.value = true
 
-  // 添加几个标记点做演示
   addDemoEntities(v)
+  setupGUI()
+}
+
+/**
+ * 创建 dat.GUI 控制面板（浮动在地图右上角）
+ */
+function setupGUI() {
+  const stage = document.querySelector('.demo-stage') as HTMLElement
+  if (!stage) return
+
+  gui = new GUI({ autoPlace: false, width: 200 })
+  gui.domElement.style.position = 'absolute'
+  gui.domElement.style.top = '12px'
+  gui.domElement.style.right = '12px'
+  gui.domElement.style.zIndex = '10'
+  stage.appendChild(gui.domElement)
+
+  const config = { 底图: '影像' }
+  gui.add(config, '底图', ['影像', '矢量']).onChange((val: string) => {
+    tiandituStyle.value = val === '矢量' ? 'vector' : 'image'
+  })
 }
 
 /**
@@ -106,6 +134,11 @@ function flyTo(lon: number, lat: number, height: number) {
     duration: 1.5,
   })
 }
+
+onUnmounted(() => {
+  gui?.destroy()
+  gui = null
+})
 </script>
 
 <template>
@@ -139,10 +172,10 @@ function flyTo(lon: number, lat: number, height: number) {
       </div>
 
       <span class="text-xs text-zinc-500 hidden sm:inline ml-auto">
-        底图 OpenStreetMap · 标记 / 标签 / 虚线航线
+        标记 / 标签 / 虚线航线
       </span>
 
-      <div class="flex items-center gap-2 ml-auto sm:ml-0">
+      <div class="flex items-center gap-2">
         <span
           class="w-2 h-2 rounded-full"
           :class="viewerReady ? 'bg-green-500' : 'bg-yellow-500 animate-pulse'"
@@ -153,7 +186,7 @@ function flyTo(lon: number, lat: number, height: number) {
     <!-- Cesium 场景区域 — flex-1 填充剩余高度 -->
     <div class="demo-stage flex-1 w-full relative min-h-0">
       <CesiumViewer
-        imagery="osm"
+        :tianditu-style="tiandituStyle"
         :initial-position="[116.397, 39.909, 10_000_000]"
         @ready="onViewerReady"
       />

@@ -25,6 +25,11 @@ const routes: RouteRecordRaw[] = [
     name: 'cesium-shader-water',
     component: () => import('@/demos/cesium/ShaderWater.vue'),
   },
+  {
+    path: '/cesium/volume-cloud',
+    name: 'cesium-volume-cloud',
+    component: () => import('@/demos/cesium/VolumeCloud.vue'),
+  },
 
   // ---- Three.js 专题 ----
   {

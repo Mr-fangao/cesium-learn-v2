@@ -12,9 +12,14 @@ declare namespace Cesium {
     camera: Camera
     scene: Scene
     entities: EntityCollection
+    imageryLayers: ImageryLayerCollection
     cesiumWidget: CesiumWidget
     isDestroyed(): boolean
     destroy(): void
+  }
+
+  class ImageryLayerCollection {
+    addImageryProvider(provider: any, index?: number): any
   }
 
   interface ViewerOptions {
@@ -52,6 +57,15 @@ declare namespace Cesium {
 
   class CesiumWidget {
     creditContainer: HTMLElement
+  }
+
+  class UrlTemplateImageryProvider {
+    constructor(options: {
+      url: string
+      subdomains?: string[]
+      minimumLevel?: number
+      maximumLevel?: number
+    })
   }
 
   class EntityCollection {
