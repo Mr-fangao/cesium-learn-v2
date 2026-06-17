@@ -257,10 +257,10 @@ function createFlameSystem(flameImg: HTMLCanvasElement) {
     endColor: new C.Color(1.0, 0.2, 0.0, 0.0),
     minimumParticleLife: 0.4,
     maximumParticleLife: 0.9,
-    // 翻转 Z 轴：ConeEmitter 默认沿 Z+ 喷射，火箭需要沿 Z-（向下）
+    // 发射器放在喷嘴位置（火箭底部 -20m），Z 翻转指向下方
     emitterModelMatrix: (() => {
       const rot = C.Matrix3.fromRotationX(C.Math.toRadians(180))
-      return C.Matrix4.fromRotationTranslation(rot, C.Cartesian3.ZERO)
+      return C.Matrix4.fromRotationTranslation(rot, new C.Cartesian3(0, 0, -20))
     })(),
   })
   return ps
@@ -282,6 +282,8 @@ function createSmokeSystem(smokeImg: HTMLCanvasElement) {
     minimumParticleLife: 2.5,
     maximumParticleLife: 4.5,
     sizeInMeters: true,
+    // 烟雾也从喷嘴位置发出
+    emitterModelMatrix: C.Matrix4.fromTranslation(new C.Cartesian3(0, 0, -20), new C.Matrix4()),
   })
 }
 
@@ -337,9 +339,9 @@ function reset() {
   viewer.clock.currentTime = C.JulianDate.fromIso8601('2024-01-01T00:00:00Z')
   viewer.clock.multiplier = state.speed
 
-  // 火箭回原位
+  // 火箭回原位（清除 orientation，恢复默认竖直姿态）
   rocketEntity!.position = C.Cartesian3.fromDegrees(110.949, 19.618, 10)
-  rocketEntity!.orientation = new C.VelocityOrientationProperty(rocketEntity!.position as any)
+  rocketEntity!.orientation = undefined as any
 
   // 重建粒子系统（重置后干净的粒子状态）
   if (flamePS) { viewer.scene.primitives.remove(flamePS); flamePS.destroy() }
@@ -370,8 +372,18 @@ function onScenePreUpdate(_scene: any) {
   const pos = rocketEntity.position?.getValue(viewer!.clock.currentTime)
   if (!pos) return
 
-  C.Matrix4.fromTranslation(pos, flamePS.modelMatrix)
-  C.Matrix4.fromTranslation(pos, smokePS.modelMatrix)
+  // 获取火箭姿态，叠入 modelMatrix 让粒子方向随火箭倾斜
+  const ori = rocketEntity.orientation?.getValue(viewer!.clock.currentTime)
+  let modelMatrix: any
+  if (ori) {
+    modelMatrix = C.Matrix4.fromRotationTranslation(C.Matrix3.fromQuaternion(ori, new C.Matrix3()), pos, new C.Matrix4())
+  } else {
+    modelMatrix = C.Matrix4.fromTranslation(pos, new C.Matrix4())
+  }
+
+  // 通过 setter 赋值，确保 Cesium 感知到矩阵变化
+  flamePS.modelMatrix = modelMatrix
+  smokePS.modelMatrix = modelMatrix
 }
 
 /* ================================================================
@@ -420,10 +432,14 @@ function onViewerReady(v: Cesium.Viewer) {
 let gui: GUI | null = null
 
 function setupGUI() {
-  const container = document.getElementById('rocket-gui')
-  if (!container || gui) return
+  const stage = document.querySelector('.demo-stage') as HTMLElement
+  if (!stage || gui) return
 
-  gui = new GUI({ container, title: '🚀 发射控制', width: 260 })
+  gui = new GUI({ autoPlace: false, width: 260 })
+  Object.assign(gui.domElement.style, {
+    position: 'absolute', top: '12px', right: '12px', zIndex: '10',
+  })
+  stage.appendChild(gui.domElement)
 
   const ctrl = gui.addFolder('控制')
   ctrl.add({ launch }, 'launch').name('🔴 发射')
@@ -439,8 +455,6 @@ function setupGUI() {
 
   const info = gui.addFolder('飞行数据')
   info.add(state, 'flightTime').name('飞行时间 (s)').disable().listen()
-
-  gui.add({ tutorial: () => (showTutorial.value = true) }, 'tutorial').name('📖 教程')
 }
 
 /* ================================================================
@@ -458,21 +472,25 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="rocket-page h-full w-full relative flex flex-col">
-    <!-- Cesium 视口 -->
-    <CesiumViewer
-      class="flex-1 min-h-0"
-      :initial-position="[110.949, 19.618, 800]"
-      :scene-mode="'3d'"
-      @ready="onViewerReady"
-    />
+  <div class="demo-page h-full flex flex-col min-h-0">
+    <!-- Header -->
+    <div class="demo-header shrink-0 h-12 px-6 border-b border-surface-border flex items-center gap-3 bg-surface">
+      <h2 class="font-semibold text-sm">粒子系统 · 火箭发射</h2>
+      <span class="text-xs text-zinc-500 hidden sm:inline">ParticleSystem · ConeEmitter · CircleEmitter · modelMatrix 跟随</span>
+      <button
+        class="text-xs px-2.5 py-1 rounded-md bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 transition-colors ml-auto"
+        @click="showTutorial = true"
+      >📖 教程</button>
+    </div>
 
-    <!-- GUI 面板 -->
-    <div
-      id="rocket-gui"
-      class="absolute top-4 right-4 z-10"
-      style="max-height: calc(100vh - 32px); overflow-y: auto"
-    />
+    <!-- Cesium 视口 -->
+    <div class="demo-stage flex-1 w-full relative min-h-0">
+      <CesiumViewer
+        :initial-position="[110.949, 19.618, 800]"
+        :scene-mode="'3d'"
+        @ready="onViewerReady"
+      />
+    </div>
 
     <!-- 教程弹窗 -->
     <TutorialModal v-model:visible="showTutorial" title="ParticleSystem 粒子系统">
@@ -566,10 +584,10 @@ c.getContext('2d')!.fill(g)</code></pre>
       </div>
     </TutorialModal>
 
-    <!-- 飞行时间 HUD -->
+    <!-- 飞行时间 HUD（放在 demo-page 层，覆盖整个页面） -->
     <div
       v-if="state.launched"
-      class="absolute bottom-6 left-1/2 z-10 px-6 py-2 rounded-full
+      class="absolute bottom-6 left-1/2 z-20 px-6 py-2 rounded-full
              bg-black/60 backdrop-blur text-white font-mono text-lg tracking-wider
              border border-white/10"
       style="transform: translateX(-50%)"
@@ -580,17 +598,14 @@ c.getContext('2d')!.fill(g)</code></pre>
 </template>
 
 <style scoped>
-.rocket-page {
-  background: #0a0a0a;
-}
-
-/* ---- lil-gui 暗色主题 ---- */
-:global(#rocket-gui .lil-gui) {
-  --background-color: rgba(0, 0, 0, 0.78);
+/* ---- lil-gui 暗色主题 —— 修复按钮文字可见性 ---- */
+:global(.demo-stage .lil-gui) {
+  --background-color: #1a1a2e;
   --widget-color: #e0e0e0;
   --title-color: #818cf8;
   --number-color: #818cf8;
   --string-color: #34d399;
+  --font-family: inherit;
   backdrop-filter: blur(10px);
   border-radius: 10px;
   border: 1px solid rgba(255, 255, 255, 0.08);
