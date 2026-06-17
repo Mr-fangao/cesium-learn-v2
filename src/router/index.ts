@@ -30,6 +30,16 @@ const routes: RouteRecordRaw[] = [
     name: 'cesium-volume-cloud',
     component: () => import('@/demos/cesium/VolumeCloud.vue'),
   },
+  {
+    path: '/cesium/3dtiles',
+    name: 'cesium-3dtiles',
+    component: () => import('@/demos/cesium/TilesetDemo.vue'),
+  },
+  {
+    path: '/cesium/drone-fleet',
+    name: 'cesium-drone-fleet',
+    component: () => import('@/demos/cesium/DroneFleet.vue'),
+  },
 
   // ---- Three.js 专题 ----
   {
