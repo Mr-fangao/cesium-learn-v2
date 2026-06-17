@@ -63,7 +63,7 @@ function createGlowImage(inner: string, outer: string): HTMLCanvasElement {
  * ================================================================ */
 
 function buildLaunchPad() {
-  const { Cartesian3, Color, Cartesian3: C3, Transforms } = C
+  const { Cartesian3, Color } = C
 
   // ── 发射台基座（扁灰圆柱）──
   viewer!.entities.add({
@@ -94,7 +94,7 @@ function buildLaunchPad() {
     name: '服务塔',
     position: Cartesian3.fromDegrees(110.9482, 19.6182, 40),
     box: {
-      dimensions: new C3(6, 6, 80),
+      dimensions: new Cartesian3(6, 6, 80),
       material: Color.fromCssColorString('#5a5a5a').withAlpha(0.85),
     },
   })
@@ -105,7 +105,7 @@ function buildLaunchPad() {
       name: `横梁-${h}`,
       position: Cartesian3.fromDegrees(110.9482, 19.6182, h),
       box: {
-        dimensions: new C3(8, 1.5, 3),
+        dimensions: new Cartesian3(8, 1.5, 3),
         material: Color.fromCssColorString('#c0392b'),
       },
     })
@@ -116,7 +116,7 @@ function buildLaunchPad() {
     name: '脐带塔',
     position: Cartesian3.fromDegrees(110.9495, 19.618, 38),
     box: {
-      dimensions: new C3(3, 12, 76),
+      dimensions: new Cartesian3(3, 12, 76),
       material: Color.fromCssColorString('#505050'),
     },
   })
@@ -146,7 +146,7 @@ function buildLaunchPad() {
     name: '导流槽',
     position: Cartesian3.fromDegrees(110.949, 19.618, -2),
     box: {
-      dimensions: new C3(15, 8, 4),
+      dimensions: new Cartesian3(15, 8, 4),
       material: Color.fromCssColorString('#333333'),
     },
   })
@@ -320,10 +320,14 @@ function launch() {
   viewer.clock.multiplier = state.speed
   viewer.clock.shouldAnimate = true
 
-  // 相机跟随
+  // 相机：拉到发射台侧面，俯视全貌
   viewer.scene.camera.flyTo({
-    destination: C.Cartesian3.fromDegrees(110.949, 19.63, 400),
-    orientation: { heading: C.Math.toRadians(90), pitch: C.Math.toRadians(-25), roll: 0 },
+    destination: C.Cartesian3.fromDegrees(110.951, 19.616, 350),
+    orientation: {
+      heading: C.Math.toRadians(330),
+      pitch: C.Math.toRadians(-35),
+      roll: 0,
+    },
     duration: 1.5,
   })
 }
@@ -525,16 +529,35 @@ onUnmounted(() => {
         </section>
 
         <section>
-          <h3 class="text-accent text-base font-semibold mb-2">四、modelMatrix — 粒子跟随移动物体</h3>
-          <p>粒子系统默认静止在世界原点。要让粒子跟随火箭飞行，每帧更新 <code>modelMatrix</code>：</p>
+          <h3 class="text-accent text-base font-semibold mb-2">四、modelMatrix — 粒子跟随 + ENU 坐标系</h3>
+          <p>粒子系统默认静止在世界原点。要让粒子跟随火箭飞行，每帧在 <code>scene.preUpdate</code> 中更新 <code>modelMatrix</code>。</p>
+          <p class="mt-2"><b>关键陷阱</b>：<code>Matrix4.fromTranslation(pos)</code> 生成的是 ECEF 矩阵，Z 轴 = 北极方向。在非赤道地区（如文昌 19°N），ECEF Z 与当地垂线有夹角，导致发射器偏移方向错误。</p>
+          <p class="mt-1"><b>正确做法</b>：用 <code>Transforms.eastNorthUpToFixedFrame</code> 生成 ENU 矩阵，Z 轴 = 当地真·上方：</p>
           <pre class="bg-zinc-900 p-2 rounded text-xs mt-1"><code>scene.preUpdate.addEventListener(() => {
   const pos = entity.position.getValue(clock.currentTime)
-  Cesium.Matrix4.fromTranslation(pos, ps.modelMatrix)
+  // ENU：Z=当地垂线，emitterModelMatrix 的 (0,0,-20) 才是真正的正下方
+  const m = Cesium.Transforms.eastNorthUpToFixedFrame(pos, Cesium.Ellipsoid.WGS84)
+  flamePS.modelMatrix = m
+  smokePS.modelMatrix = m
 })</code></pre>
         </section>
 
         <section>
-          <h3 class="text-accent text-base font-semibold mb-2">五、程序化粒子贴图</h3>
+          <h3 class="text-accent text-base font-semibold mb-2">五、emitterModelMatrix — 发射器偏移</h3>
+          <p><code>emitterModelMatrix</code> 在粒子系统局部坐标系内进一步变换发射器位置和方向：</p>
+          <pre class="bg-zinc-900 p-2 rounded text-xs mt-1"><code>// 尾焰：翻转 Z 轴（锥形朝下）+ 偏移到喷嘴
+emitterModelMatrix: Matrix4.fromRotationTranslation(
+  Matrix3.fromRotationX(Math.toRadians(180)),  // Z 翻转向下
+  new Cartesian3(0, 0, -20)                     // 火箭底部
+)
+
+// 烟雾：仅偏移到喷嘴，不翻转方向
+emitterModelMatrix: Matrix4.fromTranslation(new Cartesian3(0, 0, -20))</code></pre>
+          <p class="mt-1">最终变换链：<code>world = modelMatrix (ENU) × emitterModelMatrix (局部偏移)</code></p>
+        </section>
+
+        <section>
+          <h3 class="text-accent text-base font-semibold mb-2">六、程序化粒子贴图</h3>
           <p>用 Canvas 2D 画径向渐变圆，8 行代码免外部图片。不同颜色/透明度组合模拟火焰与烟雾。</p>
           <pre class="bg-zinc-900 p-2 rounded text-xs mt-1"><code>const c = document.createElement('canvas'); c.width = c.height = 64
 const g = c.getContext('2d')!.createRadialGradient(32,32,0,32,32,32)
@@ -543,14 +566,14 @@ c.getContext('2d')!.fill(g)</code></pre>
         </section>
 
         <section>
-          <h3 class="text-accent text-base font-semibold mb-2">六、ParticleBurst 爆发（本 demo 未用）</h3>
+          <h3 class="text-accent text-base font-semibold mb-2">七、ParticleBurst 爆发（本 demo 未用）</h3>
           <p>在系统寿命的特定时刻一次性释放大量粒子：</p>
           <pre class="bg-zinc-900 p-2 rounded text-xs mt-1"><code>bursts: [new Cesium.ParticleBurst({ time: 5, minimum: 100, maximum: 300 })]
 // 第 5 秒喷出 100-300 个粒子，适合级间分离、爆炸</code></pre>
         </section>
 
         <section>
-          <h3 class="text-accent text-base font-semibold mb-2">七、性能参考</h3>
+          <h3 class="text-accent text-base font-semibold mb-2">八、性能参考</h3>
           <ul class="list-disc list-inside ml-2 space-y-1">
             <li>粒子总数 = <code>emissionRate × particleLife</code>（尾焰 200/s × 1s = 200 个）</li>
             <li>每个粒子 = 1 个 GPU Billboard draw call，2000 以内无忧</li>
@@ -559,7 +582,7 @@ c.getContext('2d')!.fill(g)</code></pre>
         </section>
 
         <section>
-          <h3 class="text-accent text-base font-semibold mb-2">八、关键 API 速查</h3>
+          <h3 class="text-accent text-base font-semibold mb-2">九、关键 API 速查</h3>
           <table class="tutorial-table">
             <thead><tr><th>属性</th><th>说明</th></tr></thead>
             <tbody>
@@ -574,6 +597,18 @@ c.getContext('2d')!.fill(g)</code></pre>
               <tr><td>updateCallback</td><td>每帧外力回调 <code>(p, dt) =&gt; void</code></td></tr>
             </tbody>
           </table>
+        </section>
+
+        <section>
+          <h3 class="text-accent text-base font-semibold mb-2">十、面试话术</h3>
+          <p><strong>Q: "Cesium 里怎么做粒子特效？"</strong></p>
+          <p>A: "用 <code>ParticleSystem</code>，挂在 <code>viewer.scene.primitives</code> 上。选合适的 Emitter——锥形做火焰、圆形做烟雾、球形做爆炸——然后配置 <code>startColor→endColor</code> 和 <code>startScale→endScale</code> 的生命周期渐变。贴图用 Canvas 径向渐变就行，不需要外部资源。要跟随实体移动就每帧更新 <code>modelMatrix</code>。"</p>
+
+          <p class="mt-2"><strong>Q: "粒子系统不跟随实体移动怎么办？"</strong></p>
+          <p>A: "两个常见坑：① modelMatrix 用 <code>Matrix4.fromTranslation</code> 直接赋值给属性而不是原地修改，确保 Cesium setter 被触发；② ECEF 坐标系的 Z 轴指向北极而不是当地上方，必须用 <code>Transforms.eastNorthUpToFixedFrame</code> 转成 ENU 矩阵，否则发射器偏移方向会错。"</p>
+
+          <p class="mt-2"><strong>Q: "尾焰和烟雾怎么同时从正确位置发射？"</strong></p>
+          <p>A: "modelMatrix 统一放到火箭位置（ENU 矩阵），然后各自的 <code>emitterModelMatrix</code> 在局部坐标系内做偏移：火焰 Z 翻转 180° + 平移到底部喷嘴，烟雾只平移不翻转。这样两个粒子系统共享同一个父变换，偏移各自独立。"</p>
         </section>
       </div>
     </TutorialModal>
