@@ -29,6 +29,7 @@ const navGroups = [
       { label: '3D Tileset 模型加载', path: '/cesium/3dtiles' },
       { label: '无人机蜂群监控', path: '/cesium/drone-fleet' },
       { label: '后处理特效', path: '/cesium/post-process' },
+      { label: '粒子系统 · 火箭发射', path: '/cesium/rocket-launch' },
     ],
   },
   {

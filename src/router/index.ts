@@ -45,6 +45,11 @@ const routes: RouteRecordRaw[] = [
     name: 'cesium-post-process',
     component: () => import('@/demos/cesium/PostProcessDemo.vue'),
   },
+  {
+    path: '/cesium/rocket-launch',
+    name: 'cesium-rocket-launch',
+    component: () => import('@/demos/cesium/RocketLaunch.vue'),
+  },
 
   // ---- Three.js 专题 ----
   {
