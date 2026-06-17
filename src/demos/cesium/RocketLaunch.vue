@@ -306,7 +306,6 @@ function launch() {
     sp.addSample(C.JulianDate.clone(sampleTime), s.pos)
   })
   rocketEntity!.position = sp
-  rocketEntity!.orientation = new C.VelocityOrientationProperty(sp)
 
   // 粒子可见
   flamePS.show = state.showFlame
@@ -372,18 +371,10 @@ function onScenePreUpdate(_scene: any) {
   const pos = rocketEntity.position?.getValue(viewer!.clock.currentTime)
   if (!pos) return
 
-  // 获取火箭姿态，叠入 modelMatrix 让粒子方向随火箭倾斜
-  const ori = rocketEntity.orientation?.getValue(viewer!.clock.currentTime)
-  let modelMatrix: any
-  if (ori) {
-    modelMatrix = C.Matrix4.fromRotationTranslation(C.Matrix3.fromQuaternion(ori, new C.Matrix3()), pos, new C.Matrix4())
-  } else {
-    modelMatrix = C.Matrix4.fromTranslation(pos, new C.Matrix4())
-  }
-
-  // 通过 setter 赋值，确保 Cesium 感知到矩阵变化
-  flamePS.modelMatrix = modelMatrix
-  smokePS.modelMatrix = modelMatrix
+  // ENU 坐标系：Z=当地垂线（真·上方），避免 ECEF 的 Z=北极导致的横向偏移
+  const m = C.Transforms.eastNorthUpToFixedFrame(pos, C.Ellipsoid.WGS84, new C.Matrix4())
+  flamePS.modelMatrix = m
+  smokePS.modelMatrix = m
 }
 
 /* ================================================================
@@ -438,6 +429,9 @@ function setupGUI() {
   gui = new GUI({ autoPlace: false, width: 260 })
   Object.assign(gui.domElement.style, {
     position: 'absolute', top: '12px', right: '12px', zIndex: '10',
+    backdropFilter: 'blur(10px)',
+    borderRadius: '10px',
+    border: '1px solid rgba(255,255,255,0.08)',
   })
   stage.appendChild(gui.domElement)
 
@@ -598,19 +592,6 @@ c.getContext('2d')!.fill(g)</code></pre>
 </template>
 
 <style scoped>
-/* ---- lil-gui 暗色主题 —— 修复按钮文字可见性 ---- */
-:global(.demo-stage .lil-gui) {
-  --background-color: #1a1a2e;
-  --widget-color: #e0e0e0;
-  --title-color: #818cf8;
-  --number-color: #818cf8;
-  --string-color: #34d399;
-  --font-family: inherit;
-  backdrop-filter: blur(10px);
-  border-radius: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-}
-
 /* ---- 教程表格 ---- */
 .tutorial-table {
   width: 100%;
