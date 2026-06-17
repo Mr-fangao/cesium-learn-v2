@@ -28,6 +28,7 @@ const navGroups = [
       { label: '体渲染云层', path: '/cesium/volume-cloud' },
       { label: '3D Tileset 模型加载', path: '/cesium/3dtiles' },
       { label: '无人机蜂群监控', path: '/cesium/drone-fleet' },
+      { label: '后处理特效', path: '/cesium/post-process' },
     ],
   },
   {

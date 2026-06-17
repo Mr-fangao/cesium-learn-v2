@@ -40,6 +40,11 @@ const routes: RouteRecordRaw[] = [
     name: 'cesium-drone-fleet',
     component: () => import('@/demos/cesium/DroneFleet.vue'),
   },
+  {
+    path: '/cesium/post-process',
+    name: 'cesium-post-process',
+    component: () => import('@/demos/cesium/PostProcessDemo.vue'),
+  },
 
   // ---- Three.js 专题 ----
   {
