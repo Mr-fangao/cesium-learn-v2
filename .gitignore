@@ -23,3 +23,7 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Large binary assets (download separately or generate locally)
+public/data/
+public/models/
