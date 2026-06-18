@@ -96,7 +96,17 @@ function applyTiandituLayers(C: any, v: Cesium.Viewer) {
 function makeTerrainProvider(C: any) {
   if (props.terrain === 'ion') {
     const token = props.accessToken || C.Ion?.defaultAccessToken
-    if (token) return C.createWorldTerrain?.() ?? new C.EllipsoidTerrainProvider()
+    if (!token) {
+      // 无 Token → 退回椭球
+      return props.terrain === 'ellipsoid' ? new C.EllipsoidTerrainProvider() : undefined
+    }
+    // Cesium 1.111 中 createWorldTerrain 不存在，正确 API 是 Terrain.fromWorldTerrain()
+    // 该 API 依赖 C.Ion.defaultAccessToken，这里临时 set/unset 避免影响 Viewer 构造时的默认底图
+    const prevToken = C.Ion?.defaultAccessToken
+    C.Ion.defaultAccessToken = token
+    const wt = C.Terrain.fromWorldTerrain?.() ?? new C.EllipsoidTerrainProvider()
+    C.Ion.defaultAccessToken = prevToken
+    return wt
   }
   return props.terrain === 'ellipsoid' ? new C.EllipsoidTerrainProvider() : undefined
 }

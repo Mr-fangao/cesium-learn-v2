@@ -30,6 +30,7 @@ const navGroups = [
       { label: '无人机蜂群监控', path: '/cesium/drone-fleet' },
       { label: '后处理特效', path: '/cesium/post-process' },
       { label: '粒子系统 · 火箭发射', path: '/cesium/rocket-launch' },
+      { label: '地形高度采样', path: '/cesium/terrain-analysis' },
     ],
   },
   {

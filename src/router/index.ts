@@ -50,6 +50,11 @@ const routes: RouteRecordRaw[] = [
     name: 'cesium-rocket-launch',
     component: () => import('@/demos/cesium/RocketLaunch.vue'),
   },
+  {
+    path: '/cesium/terrain-analysis',
+    name: 'cesium-terrain-analysis',
+    component: () => import('@/demos/cesium/TerrainAnalysis.vue'),
+  },
 
   // ---- Three.js 专题 ----
   {
