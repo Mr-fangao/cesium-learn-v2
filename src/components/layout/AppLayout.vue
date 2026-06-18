@@ -22,7 +22,6 @@ const navGroups = [
     label: 'Cesium',
     icon: Globe,
     children: [
-      { label: 'Hello Cesium', path: '/cesium/hello' },
       { label: '自定义 Primitive', path: '/cesium/primitive-custom' },
       { label: 'Shader 水域', path: '/cesium/shader-water' },
       { label: '体渲染云层', path: '/cesium/volume-cloud' },

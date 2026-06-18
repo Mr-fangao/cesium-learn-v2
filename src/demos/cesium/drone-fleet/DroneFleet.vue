@@ -13,6 +13,7 @@
 
 import { ref, reactive, onUnmounted } from 'vue'
 import { GUI } from 'lil-gui'
+import { createDemoGui } from '@/shared/gui'
 import CesiumViewer from '@/components/cesium/CesiumViewer.vue'
 import TutorialModal from '@/components/common/TutorialModal.vue'
 import { generateFlightData } from './droneData'
@@ -541,9 +542,7 @@ function setupGUI() {
   const stage = document.querySelector('.demo-stage') as HTMLElement
   if (!stage) return
 
-  gui = new GUI({ autoPlace: false, width: 260 })
-  Object.assign(gui.domElement.style, { position: 'absolute', top: '12px', right: '12px', zIndex: '10' })
-  stage.appendChild(gui.domElement)
+  gui = createDemoGui(stage)
 
   gui.add(settings, 'mode', ['live', 'replay']).name('模式')
     .onChange((v: 'live' | 'replay') => {

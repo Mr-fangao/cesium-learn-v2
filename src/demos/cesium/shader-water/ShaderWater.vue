@@ -1,31 +1,24 @@
 <script setup lang="ts">
 /**
  * ShaderWater — Material fabric 动态水域
- *
- * 方案: EllipsoidSurfaceAppearance + 自定义 Material fabric (czm_getMaterial)
- * 波浪: 主浪 8 方向 + 细浪 6 方向，对角线传播，无轴向横竖纹
- * 光学: Fresnel (Schlick) + 波峰增亮
  */
 
-import { ref, onUnmounted } from 'vue'
-import { GUI } from 'lil-gui'
+import { ref, reactive, onUnmounted } from 'vue'
 import CesiumViewer from '@/components/cesium/CesiumViewer.vue'
 import TutorialModal from '@/components/common/TutorialModal.vue'
-
-/* ================================================================
- * 状态
- * ================================================================ */
+import { buildPrimitive, setupGUI } from './shaderWater'
+import type { WaterSettings } from './shaderWater'
 
 const viewerReady = ref(false)
 const showTutorial = ref(false)
 
 let viewer: Cesium.Viewer | null = null
-let gui: GUI | null = null
+let C: any = null
+let gui: any = null
 let primitive: any = null
-let material: any = null
 let timeUpdater: (() => void) | null = null
 
-const settings = {
+const settings = reactive<WaterSettings>({
   amplitude: 1.0,
   frequency: 12,
   speed: 1.0,
@@ -33,195 +26,29 @@ const settings = {
   shallowColor: '#40c8e0',
   deepColor: '#0a3d6b',
   alpha: 0.85,
-}
+})
 
-/* ================================================================
- * GLSL 着色器
- * ================================================================ */
-
-const SHADER_SOURCE = /* glsl */ `
-czm_material czm_getMaterial(czm_materialInput materialInput) {
-  czm_material material = czm_getDefaultMaterial(materialInput);
-
-  vec3 V = normalize(materialInput.positionToEyeEC);
-  vec3 N = normalize(materialInput.normalEC);
-  vec2 uv = materialInput.st;
-
-  float A = uAmplitude;
-  float F = uFrequency;
-  float t = uTime * uSpeed;
-
-  // === 两层波浪叠加 ===
-  // 主浪 (8 dir): 大振幅大波长，基础起伏
-  // 细浪 (6 dir): 小振幅短波长，表面纹理
-  float h = 0.0, gx = 0.0, gy = 0.0;
-
-  // —— 主浪层 ——
-  for (int i = 0; i < 8; i++) {
-    float angle = 6.283185307 * float(i) / 8.0 + 0.28 * float(i);
-    vec2 dir = vec2(cos(angle), sin(angle));
-    float Fi = F * (0.85 + 0.3 * float(i) / 7.0);       // 频率微变
-    float Si = 0.55 + 0.45 * sin(float(i) * 1.7);        // 速度各异
-    float w  = 0.35;
-
-    float phase = Fi * dot(uv, dir) + t * Si;
-    h  += w * sin(phase);
-    gx += w * Fi * dir.x * cos(phase);
-    gy += w * Fi * dir.y * cos(phase);
-  }
-
-  // —— 细浪层（更小更快，表面高频纹理） ——
-  for (int j = 0; j < 6; j++) {
-    float angle = 6.283185307 * float(j) / 6.0 + 1.2;
-    vec2 dir = vec2(cos(angle), sin(angle));
-    float Fi = F * 3.2 * (0.9 + 0.2 * float(j) / 5.0);
-    float Si = 1.3 + 0.5 * cos(float(j) * 2.1);
-    float w  = 0.08;
-
-    float phase = Fi * dot(uv, dir) + t * Si;
-    h  += w * sin(phase);
-    gx += w * Fi * dir.x * cos(phase);
-    gy += w * Fi * dir.y * cos(phase);
-  }
-
-  h  *= A;
-  gx *= A;
-  gy *= A;
-
-  // === 法线扰动 ===
-  float bump = 0.1;
-  vec3 waveN = normalize(N + vec3(-gx * bump, -gy * bump, 0.0));
-
-  // === Fresnel (Schlick) ===
-  float NdotV = abs(dot(waveN, V));
-  float fresnel = pow(1.0 - NdotV, uFresnelPower);
-
-  // === 颜色 ===
-  vec3 shallowColor = vec3(uShallowR, uShallowG, uShallowB);
-  vec3 deepColor    = vec3(uDeepR, uDeepG, uDeepB);
-  vec3 waterColor   = mix(deepColor, shallowColor, fresnel);
-
-  // 波峰微亮（模拟泡沫/高光）
-  float crest = smoothstep(0.0, 1.5, h + 0.5);
-  waterColor = mix(waterColor, waterColor * 1.25, crest * 0.25);
-
-  material.diffuse = waterColor;
-  material.alpha   = uAlpha;
-
-  return material;
-}
-`
-
-/* ================================================================
- * 构建
- * ================================================================ */
-
-function hexToRgb(hex: string) {
-  return {
-    r: parseInt(hex.slice(1, 3), 16) / 255,
-    g: parseInt(hex.slice(3, 5), 16) / 255,
-    b: parseInt(hex.slice(5, 7), 16) / 255,
-  }
-}
-
-function buildMaterial(C: any) {
-  const s = hexToRgb(settings.shallowColor)
-  const d = hexToRgb(settings.deepColor)
-  return new C.Material({
-    fabric: {
-      type: 'WaterCustom',
-      uniforms: {
-        uTime: 0.0,
-        uAmplitude: settings.amplitude,
-        uFrequency: settings.frequency,
-        uSpeed: settings.speed,
-        uFresnelPower: settings.fresnelPower,
-        uAlpha: settings.alpha,
-        uShallowR: s.r, uShallowG: s.g, uShallowB: s.b,
-        uDeepR: d.r, uDeepG: d.g, uDeepB: d.b,
-      },
-      source: SHADER_SOURCE,
-    },
-  })
-}
-
-function buildPrimitive() {
-  if (!viewer || viewer.isDestroyed()) return
-  const C = window.Cesium
-
+function rebuild() {
+  if (!viewer || !C) return
   if (primitive) { viewer.scene.primitives.remove(primitive); primitive = null }
   if (timeUpdater) { viewer.scene.preUpdate.removeEventListener(timeUpdater); timeUpdater = null }
-
-  material = buildMaterial(C)
-
-  const rect = C.Rectangle.fromDegrees(115.5, 39.0, 117.5, 40.5)
-  const geometry = new C.RectangleGeometry({
-    rectangle: rect,
-    vertexFormat: C.VertexFormat.ALL,
-    height: 1,
-    granularity: 0.05 * (Math.PI / 180),
-  })
-
-  const instance = new C.GeometryInstance({ geometry, id: 'water-surface' })
-
-  const appearance = new C.EllipsoidSurfaceAppearance({
-    aboveGround: false,
-    material,
-    translucent: true,
-  })
-
-  primitive = new C.Primitive({
-    geometryInstances: [instance],
-    appearance,
-    asynchronous: false,
-  })
-
-  viewer.scene.primitives.add(primitive)
-
-  const start = performance.now()
-  timeUpdater = () => {
-    if (material && !material.isDestroyed?.()) {
-      material.uniforms.uTime = (performance.now() - start) / 1000.0
-    }
-  }
-  viewer.scene.preUpdate.addEventListener(timeUpdater)
+  const r = buildPrimitive(viewer, C, settings)
+  primitive = r.primitive
+  timeUpdater = r.timeUpdater
 }
-
-/* ================================================================
- * lil-gui
- * ================================================================ */
-
-function setupGUI() {
-  const stage = document.querySelector('.demo-stage') as HTMLElement
-  if (!stage) return
-
-  gui = new GUI({ autoPlace: false, width: 260 })
-  gui.domElement.style.position = 'absolute'
-  gui.domElement.style.top = '12px'
-  gui.domElement.style.right = '12px'
-  gui.domElement.style.zIndex = '10'
-  stage.appendChild(gui.domElement)
-
-  gui.add(settings, 'amplitude', 0.0, 2.0).name('波幅').onChange(buildPrimitive)
-  gui.add(settings, 'frequency', 3, 30).name('频率').onChange(buildPrimitive)
-  gui.add(settings, 'speed', 0.1, 3.0).name('速度').onChange(buildPrimitive)
-  gui.add(settings, 'fresnelPower', 0.5, 5.0).name('Fresnel 强度').onChange(buildPrimitive)
-  gui.add(settings, 'alpha', 0.3, 1.0).name('透明度').onChange(buildPrimitive)
-  gui.addColor(settings, 'shallowColor').name('浅水色').onChange(buildPrimitive)
-  gui.addColor(settings, 'deepColor').name('深水色').onChange(buildPrimitive)
-}
-
-/* ================================================================
- * 生命周期
- * ================================================================ */
 
 function onViewerReady(v: Cesium.Viewer) {
   viewer = v
+  C = window.Cesium
   viewerReady.value = true
-  buildPrimitive()
-  setupGUI()
 
-  const C = window.Cesium as any
+  const r = buildPrimitive(v, C, settings)
+  primitive = r.primitive
+  timeUpdater = r.timeUpdater
+
+  const stage = document.querySelector('.demo-stage') as HTMLElement
+  if (stage) gui = setupGUI(stage, settings, rebuild)
+
   v.camera.flyTo({
     destination: C.Cartesian3.fromDegrees(116.4, 39.7, 150000),
     orientation: {
