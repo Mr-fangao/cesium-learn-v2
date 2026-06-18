@@ -40,8 +40,7 @@ let profileA: any = null // Cartographic | null
 let profileB: any = null // Cartographic | null
 let profileAEntity: Cesium.Entity | null = null
 let profileBEntity: Cesium.Entity | null = null
-let profileCanvas: HTMLCanvasElement | null = null
-let terrainProvider: any = null
+let profileLocked = false
 
 /* ================================================================
  * 3. 地形就绪检测
@@ -50,10 +49,6 @@ let terrainProvider: any = null
 function checkTerrain() {
   if (!viewer) return
 
-  const name = (terrainProvider as any)?.constructor?.name ?? ''
-
-  // CesiumTerrainProvider minified name 如 "nD"
-  // EllipsoidTerrainProvider minified name 如 "ID" 或其他
   // 简单策略：等 3 秒让瓦片加载，然后标记就绪
   // 如果 15 秒后 sampleHeightSupported 仍为 false，才认为无地形
   let attempts = 0
@@ -76,15 +71,15 @@ function checkTerrain() {
  * 4. 点击采样
  * ================================================================ */
 
-function addSamplePin(cartesian: any, carto: any, height: number) {
+function addSamplePin(lon: number, lat: number, height: number) {
   if (!viewer || !C) return
 
+  // 用 sampleTerrain 的高度直接定位，不经 pickPosition 的深度值
   const entity = viewer.entities.add({
-    position: cartesian,
+    position: C.Cartesian3.fromRadians(lon, lat, height),
     billboard: {
       image: createPinCanvas('#4da6ff'),
       verticalOrigin: C.VerticalOrigin.BOTTOM,
-      heightReference: C.HeightReference.CLAMP_TO_GROUND,
       scale: 0.6,
     },
     label: {
@@ -95,7 +90,6 @@ function addSamplePin(cartesian: any, carto: any, height: number) {
       outlineWidth: 2,
       verticalOrigin: C.VerticalOrigin.BOTTOM,
       pixelOffset: new C.Cartesian2(0, -28),
-      heightReference: C.HeightReference.CLAMP_TO_GROUND,
     },
   })
   samplePins.push(entity)
@@ -122,36 +116,36 @@ function createPinCanvas(color: string): HTMLCanvasElement {
  * ================================================================ */
 
 async function computeProfile(startCarto: any, endCarto: any) {
-  if (!viewer || !C || !terrainProvider) return
+  if (!viewer || !C) return
 
-  // 沿大圆路径生成 100 个采样点
-  const geodesic = new C.EllipsoidGeodesic(startCarto, endCarto)
-  const samples: any[] = []
-  for (let i = 0; i <= 100; i++) {
-    const carto = geodesic.interpolateUsingFraction(i / 100, new C.Cartographic())
-    samples.push(carto)
+  const tp = viewer.terrainProvider
+  if (!tp) return
+
+  try {
+    const geodesic = new C.EllipsoidGeodesic(startCarto, endCarto)
+    const samples: any[] = []
+    for (let i = 0; i <= 100; i++) {
+      samples.push(geodesic.interpolateUsingFraction(i / 100, new C.Cartographic()))
+    }
+
+    await C.sampleTerrain(tp, state.sampleLevel, samples)
+
+    const totalD = geodesic.surfaceDistance
+    const distances = samples.map((_, i) => (totalD * i) / (samples.length - 1))
+
+    showProfile.value = true
+    await nextTick()
+    drawProfileChart(samples, distances)
+  } catch (e: any) {
+    console.error('[Terrain] computeProfile failed:', e.message || e)
+  } finally {
+    profileLocked = false
   }
-
-  // 批量采样地形高度
-  await C.sampleTerrain(terrainProvider, state.sampleLevel, samples)
-
-  // 计算累积距离（沿大圆均匀分布）
-  const totalD = geodesic.getSurfaceDistance()
-  const distances: number[] = []
-  for (let i = 0; i < samples.length; i++) {
-    distances.push((totalD * i) / (samples.length - 1))
-  }
-
-  showProfile.value = true
-  await nextTick()
-  drawProfileChart(samples, distances)
 }
 
 function drawProfileChart(samples: any[], distances: number[]) {
   const canvas = document.getElementById('profile-canvas') as HTMLCanvasElement | null
   if (!canvas) return
-  profileCanvas = canvas
-
   const W = canvas.width
   const H = canvas.height
   const pad = { top: 30, right: 20, bottom: 40, left: 55 }
@@ -260,6 +254,7 @@ function drawProfileChart(samples: any[], distances: number[]) {
 
 function clearProfile() {
   profileA = null; profileB = null
+  profileLocked = false
   if (profileAEntity) { viewer?.entities.remove(profileAEntity); profileAEntity = null }
   if (profileBEntity) { viewer?.entities.remove(profileBEntity); profileBEntity = null }
   showProfile.value = false
@@ -282,78 +277,66 @@ function setupClickHandler() {
   handler = new C.ScreenSpaceEventHandler(viewer.scene.canvas)
 
   handler.setInputAction(async (click: any) => {
-    const cartesian = viewer!.scene.pickPosition(click.position)
-    if (!cartesian || !C) return
+    if (!viewer || !C || profileLocked) return
+
+    // 拾取椭球面得到精确 lon/lat（数学交点，不受地形 LOD 影响）
+    const cartesian = viewer.camera.pickEllipsoid(click.position, viewer.scene.globe.ellipsoid)
+    if (!cartesian) return
 
     const carto = C.Cartographic.fromCartesian(cartesian)
 
+    // 用 terrainProvider 查询真实地形高度（与剖面图同一数据源）
+    let height = carto.height
+    const tp = viewer.terrainProvider
+    if (tp) {
+      const samples = [C.Cartographic.clone(carto)]
+      await C.sampleTerrain(tp, state.sampleLevel, samples)
+      if (samples[0].height !== undefined) height = samples[0].height
+    }
+
+    // 用采样后的高度重建位置（不依赖 pickPosition 深度值或 CLAMP_TO_GROUND）
+    const pos = C.Cartesian3.fromRadians(carto.longitude, carto.latitude, height)
+
     if (state.profileMode) {
       if (!profileA) {
-        // 选起点
-        profileA = C.Cartographic.clone(carto)
-        profileAEntity = viewer!.entities.add({
-          position: C.Cartesian3.fromRadians(carto.longitude, carto.latitude, carto.height + 5),
-          billboard: {
-            image: createPinCanvas('#4ade80'),
-            verticalOrigin: C.VerticalOrigin.BOTTOM,
-            heightReference: C.HeightReference.CLAMP_TO_GROUND,
-            scale: 0.8,
-          },
-          label: {
-            text: 'A 起点',
-            font: '13px monospace',
-            fillColor: C.Color.fromCssColorString('#4ade80'),
-            outlineColor: C.Color.fromCssColorString('#1a1a2e'),
-            outlineWidth: 2,
-            verticalOrigin: C.VerticalOrigin.BOTTOM,
-            pixelOffset: new C.Cartesian2(0, -28),
-            heightReference: C.HeightReference.CLAMP_TO_GROUND,
-          },
+        profileA = C.Cartographic.fromRadians(carto.longitude, carto.latitude, height)
+        profileAEntity = viewer.entities.add({
+          position: pos,
+          billboard: { image: createPinCanvas('#4ade80'), verticalOrigin: C.VerticalOrigin.BOTTOM, scale: 0.8 },
+          label: { text: 'A 起点', font: '13px monospace', fillColor: C.Color.fromCssColorString('#4ade80'), outlineColor: C.Color.fromCssColorString('#1a1a2e'), outlineWidth: 2, verticalOrigin: C.VerticalOrigin.BOTTOM, pixelOffset: new C.Cartesian2(0, -28) },
         })
-      } else if (!profileB) {
-        // 选终点
-        profileB = C.Cartographic.clone(carto)
-        profileBEntity = viewer!.entities.add({
-          position: C.Cartesian3.fromRadians(carto.longitude, carto.latitude, carto.height + 5),
-          billboard: {
-            image: createPinCanvas('#f87171'),
-            verticalOrigin: C.VerticalOrigin.BOTTOM,
-            heightReference: C.HeightReference.CLAMP_TO_GROUND,
-            scale: 0.8,
-          },
-          label: {
-            text: 'B 终点',
-            font: '13px monospace',
-            fillColor: C.Color.fromCssColorString('#f87171'),
-            outlineColor: C.Color.fromCssColorString('#1a1a2e'),
-            outlineWidth: 2,
-            verticalOrigin: C.VerticalOrigin.BOTTOM,
-            pixelOffset: new C.Cartesian2(0, -28),
-            heightReference: C.HeightReference.CLAMP_TO_GROUND,
-          },
+      } else {
+        profileB = C.Cartographic.fromRadians(carto.longitude, carto.latitude, height)
+        profileBEntity = viewer.entities.add({
+          position: pos,
+          billboard: { image: createPinCanvas('#f87171'), verticalOrigin: C.VerticalOrigin.BOTTOM, scale: 0.8 },
+          label: { text: 'B 终点', font: '13px monospace', fillColor: C.Color.fromCssColorString('#f87171'), outlineColor: C.Color.fromCssColorString('#1a1a2e'), outlineWidth: 2, verticalOrigin: C.VerticalOrigin.BOTTOM, pixelOffset: new C.Cartesian2(0, -28) },
         })
         state.profileMode = false
-        await computeProfile(profileA, profileB)
+        profileLocked = true
+        computeProfile(profileA, profileB)
       }
       return
     }
 
-    // 普通模式：采样当前点高度
-    if (viewer!.scene.sampleHeightSupported) {
-      const pos = C.Cartographic.clone(carto)
-      const positions = [pos]
-      try {
-        await viewer!.scene.sampleHeightMostDetailed(positions)
-        if (positions[0].height !== undefined) {
-          addSamplePin(cartesian, positions[0], positions[0].height)
-        }
-      } catch {
-        // sampleHeightMostDetailed 失败，用 pickPosition 返回的高度
-        addSamplePin(cartesian, carto, carto.height)
-      }
-    } else {
-      addSamplePin(cartesian, carto, carto.height)
-    }
+    const pin = viewer.entities.add({
+      position: pos,
+      billboard: {
+        image: createPinCanvas('#4da6ff'),
+        verticalOrigin: C.VerticalOrigin.BOTTOM,
+        scale: 0.6,
+      },
+      label: {
+        text: `${height.toFixed(0)} m`,
+        font: '13px monospace',
+        fillColor: C.Color.WHITE,
+        outlineColor: C.Color.fromCssColorString('#1a1a2e'),
+        outlineWidth: 2,
+        verticalOrigin: C.VerticalOrigin.BOTTOM,
+        pixelOffset: new C.Cartesian2(0, -28),
+      },
+    })
+    samplePins.push(pin)
   }, C.ScreenSpaceEventType.LEFT_CLICK)
 }
 
@@ -384,9 +367,7 @@ function setupGUI() {
   // 剖面分析
   const profileFolder = gui.addFolder('剖面分析')
   profileFolder.add({ start: () => {
-    profileA = null; profileB = null
-    if (profileAEntity) { viewer?.entities.remove(profileAEntity); profileAEntity = null }
-    if (profileBEntity) { viewer?.entities.remove(profileBEntity); profileBEntity = null }
+    clearProfile()
     state.profileMode = true
   } }, 'start').name('开始选点 (A→B)')
   profileFolder.add({ clear: clearAllSamples }, 'clear').name('清除全部标记')
@@ -403,19 +384,27 @@ function setupGUI() {
 function onViewerReady(v: Cesium.Viewer) {
   viewer = v
   C = window.Cesium
-  terrainProvider = v.terrainProvider
 
-  // DEBUG: 不替换 terrain，测试底图是否正常
   v.scene.globe.terrainExaggeration = state.exaggeration
-  // checkTerrain()
+  checkTerrain()
+
+  v.camera.flyTo({
+    destination: C.Cartesian3.fromDegrees(86.925, 27.988, 30000),
+    orientation: {
+      heading: C.Math.toRadians(15),
+      pitch: C.Math.toRadians(-35),
+      roll: 0,
+    },
+    duration: 0,
+  })
 
   // 珠峰参考标记
   v.entities.add({
-    position: C.Cartesian3.fromDegrees(86.925, 27.988, 8850),
+    position: C.Cartesian3.fromDegrees(86.925, 27.988, 8848),
     billboard: {
       image: createPinCanvas('#ffd93d'),
       verticalOrigin: C.VerticalOrigin.BOTTOM,
-      heightReference: C.HeightReference.CLAMP_TO_GROUND,
+      eyeOffset: new C.Cartesian3(0, 0, 10),
       scale: 0.8,
     },
     label: {
@@ -478,7 +467,8 @@ onUnmounted(() => {
     <!-- Cesium 视口 -->
     <div class="demo-stage flex-1 w-full relative min-h-0">
       <CesiumViewer
-        :initial-position="[86.925, 27.988, 25000]"
+        :initial-position="[86.925, 27.988, 30000]"
+        terrain="ion"
         @ready="onViewerReady"
       />
 
@@ -498,7 +488,7 @@ onUnmounted(() => {
         v-if="!terrainReady"
         class="absolute right-4 bottom-4 z-10 text-xs text-amber-400 bg-amber-500/10 backdrop-blur rounded-lg px-3 py-2 border border-amber-500/20 max-w-xs"
       >
-        ⚠️ 地形瓦片加载中... 需 Cesium Ion Token（<a href="https://ion.cesium.com" target="_blank" class="underline text-amber-300">免费注册</a>）
+        ⚠️ Cesium World Terrain 瓦片加载中...
       </div>
 
       <!-- 剖面图 -->
@@ -518,32 +508,57 @@ onUnmounted(() => {
     <TutorialModal v-model:visible="showTutorial" title="地形高度采样与分析">
       <div class="tutorial-body space-y-4 text-sm leading-relaxed">
         <section>
-          <h3 class="text-accent text-base font-semibold mb-2">一、DEM 与 TerrainProvider</h3>
-          <p>数字高程模型（DEM）用栅格存储地表高度。Cesium 通过 <code>TerrainProvider</code> 加载量化网格瓦片（quantized-mesh），并在 GPU 着色器中重建地形几何。</p>
-          <pre class="bg-zinc-900 p-2 rounded text-xs mt-1"><code>// Cesium World Terrain（推荐，全球覆盖）
-viewer.terrainProvider = Cesium.createWorldTerrain({
-  requestVertexNormals: true,  // 光照法线
-  requestWaterMask: true,      // 水面效果
-})
+          <h3 class="text-accent text-base font-semibold mb-2">一、TerrainProvider — 地形数据源</h3>
+          <p>数字高程模型（DEM）用栅格存储地表高度。Cesium 通过 <code>TerrainProvider</code> 加载量化网格瓦片（quantized-mesh），并在 GPU 中重建地形几何。</p>
+          <p class="mt-2 font-semibold text-zinc-300">🔑 关键规则：Terrain 必须在 Viewer 构造时传入，不能事后设置 <code>viewer.terrainProvider = xxx</code>（会破坏底图渲染）。</p>
 
-// 自定义地形服务
-new Cesium.CesiumTerrainProvider({ url: 'https://your-server/tiles' })</code></pre>
+          <h4 class="text-sm font-semibold text-zinc-300 mt-3">Cesium World Terrain（Ion，需免费 Token）</h4>
+          <pre class="bg-zinc-900 p-2 rounded text-xs mt-1"><code>// ✅ Token 内嵌到 Resource，绝不碰 Cesium.Ion.defaultAccessToken
+const resource = await Cesium.IonResource.fromAssetId(1, { accessToken: token })
+const tp = await Cesium.CesiumTerrainProvider.fromUrl(resource, {
+  requestVertexNormals: true,
+  requestWaterMask: true,
+})</code></pre>
+
+          <h4 class="text-sm font-semibold text-zinc-300 mt-3">ArcGIS World Elevation（免费，无需 Token）</h4>
+          <pre class="bg-zinc-900 p-2 rounded text-xs mt-1"><code>const tp = Cesium.ArcGISTiledElevationTerrainProvider.fromUrl(
+  'https://elevation3d.arcgis.com/arcgis/rest/services/WorldElevation3D/Terrain3D/ImageServer',
+)</code></pre>
+
+          <h4 class="text-sm font-semibold text-zinc-300 mt-3">baseLayer: false — 关闭默认底图</h4>
+          <p>自定义底图（天地图等）必须配合 <code>baseLayer: false</code>，否则 Cesium 会创建默认 Ion/Bing 底图，触发过期 Token → 401 → 地球黑屏。</p>
+          <pre class="bg-zinc-900 p-2 rounded text-xs mt-1"><code>const viewer = new Cesium.Viewer(container, {
+  imageryProvider: undefined,  // 留空，后续手动 addImageryProvider
+  baseLayer: false,            // ← 禁用 Cesium 默认底图
+  terrainProvider: tp,         // Terrain 在构造时传入
+})</code></pre>
         </section>
 
         <section>
-          <h3 class="text-accent text-base font-semibold mb-2">二、sampleTerrain — 批量高度采样</h3>
+          <h3 class="text-accent text-base font-semibold mb-2">二、sampleTerrain — 精确高度采样</h3>
           <table class="tutorial-table">
-            <thead><tr><th>API</th><th>参数</th><th>特点</th></tr></thead>
+            <thead><tr><th>API</th><th>参数</th><th>场景</th></tr></thead>
             <tbody>
-              <tr><td><code>scene.sampleHeight(carto)</code></td><td>单个 Cartographic</td><td>同步，从已加载瓦片采样</td></tr>
-              <tr><td><code>scene.sampleHeightMostDetailed(positions)</code></td><td>Cartographic[]</td><td>异步，强制加载最精细瓦片</td></tr>
-              <tr><td><code>Cesium.sampleTerrain(provider, level, positions)</code></td><td>provider + level + Cartographic[]</td><td>异步，可指定 LOD 级别</td></tr>
+              <tr><td><code>scene.sampleHeight(carto)</code></td><td>单个 Cartographic</td><td>鼠标 hover，从已加载瓦片同步查</td></tr>
+              <tr><td><code>scene.sampleHeightMostDetailed(ps)</code></td><td>Cartographic[]</td><td>强制加载最精细瓦片后采样（慢）</td></tr>
+              <tr><td><code>Cesium.sampleTerrain(tp, level, ps)</code></td><td>provider + level + Cartographic[]</td><td>指定 LOD 批量采样，剖面分析首选</td></tr>
             </tbody>
           </table>
-          <pre class="bg-zinc-900 p-2 rounded text-xs mt-1"><code>const positions = [Cesium.Cartographic.fromDegrees(86.925, 27.988)]
-await Cesium.sampleTerrain(terrainProvider, 11, positions)
-console.log(positions[0].height)  // 原地修改 → 8848m</code></pre>
-          <p class="mt-1 text-zinc-400">⚠️ 高度 = WGS84 椭球面以上（非 MSL 海平面），海洋区域 ≠ 0</p>
+          <pre class="bg-zinc-900 p-2 rounded text-xs mt-1"><code>// 单点采样（点击获取高度）
+const tp = viewer.terrainProvider
+const pos = Cesium.Cartographic.fromDegrees(lon, lat)
+await Cesium.sampleTerrain(tp, level, [pos])
+const height = pos.height  // 原地修改
+
+// 批量采样（剖面分析）
+const geodesic = new Cesium.EllipsoidGeodesic(start, end)
+const samples = []
+for (let i = 0; i <= 100; i++) {
+  samples.push(geodesic.interpolateUsingFraction(i / 100, new Cesium.Cartographic()))
+}
+await Cesium.sampleTerrain(tp, level, samples)
+// samples[i].height 已填充</code></pre>
+          <p class="mt-1 text-zinc-400">⚠️ 高度 = WGS84 椭球面以上（非 MSL 海平面），海洋区域 ≠ 0。推荐用 <code>sampleTerrain</code> 而非 <code>sampleHeight</code>，和剖面分析用同一 API 保证数据一致性。</p>
         </section>
 
         <section>
@@ -554,7 +569,7 @@ for (let i = 0; i <= 100; i++) {
   const point = geodesic.interpolateUsingFraction(i / 100, new Cesium.Cartographic())
   // point.longitude, point.latitude → 待采样
 }
-const totalDistance = geodesic.getSurfaceDistance()  // 米</code></pre>
+const totalDistance = geodesic.surfaceDistance  // 米（属性，不是方法！不是 getSurfaceDistance()）</code></pre>
         </section>
 
         <section>
@@ -576,6 +591,16 @@ viewer.scene.globe.terrainExaggerationRelativeHeight = 0.0  // 基准面</code><
               <tr><td><code>RELATIVE_TO_GROUND</code></td><td>相对地形表面的高度</td></tr>
             </tbody>
           </table>
+          <p class="mt-2"><b>🔑 关键坑</b>：即使你通过 <code>sampleTerrain</code> 拿到了正确高度，把 Entity position 设为 <code>fromDegrees(lon, lat, height)</code> <b>也不会贴地形</b>。Cesium 的 terrain 渲染和 Entity 绝对坐标是两个独立系统，视觉上不会对齐。</p>
+          <pre class="bg-zinc-900 p-2 rounded text-xs mt-1"><code>// ❌ 高度值正确，但图标不贴地形
+position: Cesium.Cartesian3.fromDegrees(lon, lat, sampledHeight)
+
+// ✅ 高度设 0，靠 CLAMP_TO_GROUND 自动贴地形
+position: Cesium.Cartesian3.fromDegrees(lon, lat, 0),
+billboard: { heightReference: Cesium.HeightReference.CLAMP_TO_GROUND }
+
+// 高度数值只显示在 label 文字里，不参与位置计算
+label: { text: `${sampledHeight.toFixed(0)} m` }</code></pre>
         </section>
 
         <section>
@@ -590,14 +615,27 @@ viewer.scene.globe.terrainExaggerationRelativeHeight = 0.0  // 基准面</code><
 
         <section>
           <h3 class="text-accent text-base font-semibold mb-2">七、面试话术</h3>
-          <p><strong>Q: "Cesium 里怎么做地形高度查询？"</strong></p>
-          <p>A: "三个层次的 API：① <code>scene.sampleHeight()</code> 同步查已加载瓦片，适合鼠标 hover；② <code>scene.sampleHeightMostDetailed()</code> 异步强制加载最精细瓦片后采样，适合精确查询；③ <code>Cesium.sampleTerrain(provider, level)</code> 指定 LOD 批量采样，适合剖面分析这种几百上千个点的场景。核心注意事项：高度是 WGS84 椭球高而非海拔，海洋区域不是 0。"</p>
+
+          <p><strong>Q: "Cesium 里怎么配置地形？"</strong></p>
+          <p>A: "地形 Provider 必须在 Viewer 构造时通过 <code>terrainProvider</code> 参数传入，不能事后 <code>viewer.terrainProvider = xxx</code>。Cesium World Terrain 用 <code>IonResource.fromAssetId(1, { accessToken })</code> 内嵌 Token，不碰 <code>Ion.defaultAccessToken</code> setter——那个 setter 有全局副作用，会把默认底图切到 Ion 过期 token → 401。如果不想用 Ion，ArcGIS World Elevation 是免费的替代方案，<code>ArcGISTiledElevationTerrainProvider.fromUrl()</code> 一行搞定，无需 Token。"</p>
+
+          <p class="mt-2"><strong>Q: "Cesium 默认底图怎么关闭？"</strong></p>
+          <p>A: "<code>baseLayer: false</code>，不是 <code>imageryProvider: undefined</code>。这两个在 Cesium 里语义完全不同——前者禁止创建任何默认底图，后者是告诉 Cesium '用你自带的'，结果就是请求 Ion Bing Maps（asset 2）→ 内置 token 过期 → 401 → 地球黑屏。自定义底图（天地图等）必须配合 <code>baseLayer: false</code>。"</p>
+
+          <p class="mt-2"><strong>Q: "Cesium 里怎么做地形高度查询？"</strong></p>
+          <p>A: "三个层次的 API：① <code>scene.sampleHeight()</code> 同步查已加载瓦片，适合鼠标 hover；② <code>scene.sampleHeightMostDetailed()</code> 异步强制加载最精细瓦片后采样，适合精确查询；③ <code>Cesium.sampleTerrain(provider, level)</code> 指定 LOD 批量采样，适合剖面分析。高度是 WGS84 椭球高而非海拔，海洋区域不是 0。"</p>
 
           <p class="mt-2"><strong>Q: "地形夸张是怎么实现的？"</strong></p>
-          <p>A: "Cesium 1.83 后使用 GPU 着色器动态夸张，公式是 <code>(h - relativeH) × exag + relativeH</code>。每个顶点存储大地水准面法向量，着色器重建夸张位置，精度 ~10cm。优势是不需要预处理瓦片，滑块实时生效。局限是只影响地形几何，billboard/label 等 Entity 不会跟着抬高，需要用 heightReference 做补偿。"</p>
+          <p>A: "Cesium 在 GPU 着色器中动态夸张，公式 <code>(h - relativeH) × exag + relativeH</code>。每个顶点存储大地水准面法向量，精度 ~10cm，滑块实时生效。局限是只影响地形几何，billboard/label 不会跟着抬高，需用 <code>heightReference</code> 补偿。"</p>
 
           <p class="mt-2"><strong>Q: "两点间如何做高程剖面？"</strong></p>
-          <p>A: "① 用 <code>EllipsoidGeodesic</code> 沿大圆路径等距生成 100+ 采样点；② <code>Cesium.sampleTerrain(provider, level, samples)</code> 批量获取高度；③ Canvas 2D 绘制距离-高程折线图。大圆是椭球上的最短路径，比简单的经纬度线性插值更准确。"</p>
+          <p>A: "① <code>EllipsoidGeodesic</code> 沿大圆路径等距生成采样点；② <code>Cesium.sampleTerrain(provider, level, samples)</code> 批量获取高度；③ Canvas 2D 绘制距离-高程折线图。大圆是椭球上的最短路径，比经纬度线性插值更准确。"</p>
+
+          <p class="mt-2"><strong>Q: "Cesium Ion Token 为什么一设置全局就出问题？"</strong></p>
+          <p>A: "<code>Cesium.Ion.defaultAccessToken</code> 的 setter 会触发 Cesium 内部重新配置所有使用 Ion 的服务——包括默认 imagery provider。设置后默认底图立刻切到 Ion 托管的 Bing Maps（asset 2），但 Cesium 内置的默认 token 已过期 → 401。所以任何 Demo 只要碰了这个 setter，即使立刻还原，底图也已经切走了回不来。正确做法是用 <code>IonResource.fromAssetId(id, { accessToken })</code> 把 Token 内嵌到具体资源里，不污染全局。"</p>
+
+          <p class="mt-2"><strong>Q: "Entity 怎么贴到地形表面？"</strong></p>
+          <p>A: "用 <code>HeightReference.CLAMP_TO_GROUND</code>。position 的 height 设 0 就行，Cesium 会自动把 billboard/label 吸附到地形。千万别用 <code>fromDegrees(lon, lat, sampledHeight)</code> 设绝对高度——即使数值和地形一致，渲染管线不同也贴不齐。"</p>
         </section>
       </div>
     </TutorialModal>

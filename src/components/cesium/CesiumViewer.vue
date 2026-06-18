@@ -5,7 +5,7 @@ const props = withDefaults(
   defineProps<{
     imagery?: 'tianditu' | 'ion' | 'bing' | 'none'
     tiandituStyle?: 'vector' | 'image'
-    terrain?: 'ellipsoid' | 'ion' | 'none'
+    terrain?: 'ellipsoid' | 'ion' | 'arcgis' | 'none'
     accessToken?: string
     initialPosition?: [number, number, number]
     showCredit?: boolean
@@ -38,6 +38,7 @@ let currentLabelLayer: any = null
 
 /** 天地图 Token，从环境变量读取 */
 const TIANDITU_TOKEN = import.meta.env.VITE_TIANDITU_TOKEN as string
+const CESIUM_ION_TOKEN = import.meta.env.VITE_CESIUM_ION_TOKEN as string
 
 /** 创建天地图影像 Provider */
 type TiandituLayer = 'vec_w' | 'cva_w' | 'img_w' | 'cia_w'
@@ -51,15 +52,17 @@ function makeTiandituProvider(C: any, layer: TiandituLayer) {
   })
 }
 
-function makeImageryProvider(C: any) {
+async function makeImageryProvider(C: any) {
   switch (props.imagery) {
     case 'tianditu': {
       // 天地图走 imageryLayers 添加，不走构造函数
       return false
     }
     case 'ion': {
-      const token = props.accessToken || C.Ion?.defaultAccessToken
-      if (token) { C.Ion.defaultAccessToken = token; return C.IonImageryProvider?.fromAssetId?.(2) }
+      const token = props.accessToken
+      if (token && C.IonImageryProvider?.fromAssetId) {
+        return C.IonImageryProvider.fromAssetId(2, { accessToken: token })
+      }
       // 无 Ion Token → 退回天地图
       if (TIANDITU_TOKEN && TIANDITU_TOKEN !== 'your_token_here') return false
       return undefined
@@ -93,20 +96,23 @@ function applyTiandituLayers(C: any, v: Cesium.Viewer) {
   v.scene.requestRender()
 }
 
-function makeTerrainProvider(C: any) {
+async function makeTerrainProvider(C: any) {
+  if (props.terrain === 'arcgis') {
+    return C.ArcGISTiledElevationTerrainProvider.fromUrl(
+      'https://elevation3d.arcgis.com/arcgis/rest/services/WorldElevation3D/Terrain3D/ImageServer',
+    )
+  }
   if (props.terrain === 'ion') {
-    const token = props.accessToken || C.Ion?.defaultAccessToken
+    const token = props.accessToken || CESIUM_ION_TOKEN
     if (!token) {
-      // 无 Token → 退回椭球
-      return props.terrain === 'ellipsoid' ? new C.EllipsoidTerrainProvider() : undefined
+      throw new Error('Cesium Ion Token 未配置，请在 .env 中设置 VITE_CESIUM_ION_TOKEN')
     }
-    // Cesium 1.111 中 createWorldTerrain 不存在，正确 API 是 Terrain.fromWorldTerrain()
-    // 该 API 依赖 C.Ion.defaultAccessToken，这里临时 set/unset 避免影响 Viewer 构造时的默认底图
-    const prevToken = C.Ion?.defaultAccessToken
-    C.Ion.defaultAccessToken = token
-    const wt = C.Terrain.fromWorldTerrain?.() ?? new C.EllipsoidTerrainProvider()
-    C.Ion.defaultAccessToken = prevToken
-    return wt
+
+    const resource = await C.IonResource.fromAssetId(1, { accessToken: token })
+    return C.CesiumTerrainProvider.fromUrl(resource, {
+      requestVertexNormals: true,
+      requestWaterMask: true,
+    })
   }
   return props.terrain === 'ellipsoid' ? new C.EllipsoidTerrainProvider() : undefined
 }
@@ -122,7 +128,7 @@ function forceHeight(v: Cesium.Viewer) {
   if (cv) { cv.style.width = '100%'; cv.style.height = '100%' }
 }
 
-function initViewer() {
+async function initViewer() {
   const el = container.value
   if (!el) return
 
@@ -135,13 +141,15 @@ function initViewer() {
       throw new Error('天地图 Token 未配置，请在 .env 中设置 VITE_TIANDITU_TOKEN（申请地址: https://console.tianditu.gov.cn/）')
     }
 
-    const imageryProvider = makeImageryProvider(C)
+    const imageryProvider = await makeImageryProvider(C)
     // 当 makeImageryProvider 返回 false 时，表示要通过 imageryLayers 手动添加底图
     const useManualImagery = imageryProvider === false
+    const terrainProvider = await makeTerrainProvider(C)
 
     const v = new C.Viewer(el, {
       imageryProvider: useManualImagery ? undefined : imageryProvider,
-      terrainProvider: makeTerrainProvider(C),
+      baseLayer: useManualImagery ? false : undefined,
+      terrainProvider,
       sceneMode: (C.SceneMode?.SCENE3D ?? 1),
       animation: false, timeline: false,
       baseLayerPicker: false, fullscreenButton: false,
