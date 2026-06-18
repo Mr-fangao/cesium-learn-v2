@@ -27,7 +27,6 @@ const props = withDefaults(
 
 const emit = defineEmits<{ ready: [viewer: Cesium.Viewer] }>()
 
-// ⚠️ 变量名必须和模板 ref="container" 一致
 const container = ref<HTMLDivElement | null>(null)
 const viewer = ref<Cesium.Viewer | null>(null)
 const isReady = ref(false)
@@ -120,12 +119,10 @@ async function makeTerrainProvider(C: any) {
 function forceHeight(v: Cesium.Viewer) {
   const el = v.container as HTMLElement
   el.style.width = '100%'; el.style.height = '100%'
-  const ve = el.querySelector('.cesium-viewer') as HTMLElement | null
-  const we = el.querySelector('.cesium-widget') as HTMLElement | null
-  const cv = v.canvas as HTMLElement | null
-  if (ve) { ve.style.width = '100%'; ve.style.height = '100%' }
-  if (we) { we.style.width = '100%'; we.style.height = '100%' }
-  if (cv) { cv.style.width = '100%'; cv.style.height = '100%' }
+  const targets = [el.querySelector('.cesium-viewer'), el.querySelector('.cesium-widget'), v.canvas]
+  for (const t of targets) {
+    if (t) { (t as HTMLElement).style.width = '100%'; (t as HTMLElement).style.height = '100%' }
+  }
 }
 
 async function initViewer() {
@@ -178,8 +175,8 @@ async function initViewer() {
     const doResize = () => { if (v && !v.isDestroyed()) { forceHeight(v); v.resize() } }
     resizeObserver = new ResizeObserver(() => doResize())
     resizeObserver.observe(el)
-    setTimeout(() => doResize(), 100)
-    setTimeout(() => doResize(), 400)
+    // 延迟 resize 确保 DOM 布局完成
+    setTimeout(() => doResize(), 200)
 
     const [lon, lat, h] = props.initialPosition
     v.camera.flyTo({

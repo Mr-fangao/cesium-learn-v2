@@ -13,10 +13,7 @@ import { GUI } from 'lil-gui'
 import CesiumViewer from '@/components/cesium/CesiumViewer.vue'
 import TutorialModal from '@/components/common/TutorialModal.vue'
 
-/* ================================================================
- * 1. 响应式状态
- * ================================================================ */
-
+// —— 状态 ——
 const showTutorial = ref(false)
 const showProfile = ref(false)
 const terrainReady = ref(false)
@@ -27,71 +24,61 @@ const state = reactive({
   profileMode: false,
 })
 
-/* ================================================================
- * 2. 非响应式引用
- * ================================================================ */
-
 let viewer: Cesium.Viewer | null = null
 let C: any = null
 let gui: GUI | null = null
 let handler: any = null
 let samplePins: Cesium.Entity[] = []
-let profileA: any = null // Cartographic | null
-let profileB: any = null // Cartographic | null
+let profileA: any = null
+let profileB: any = null
 let profileAEntity: Cesium.Entity | null = null
 let profileBEntity: Cesium.Entity | null = null
 let profileLocked = false
 
-/* ================================================================
- * 3. 地形就绪检测
- * ================================================================ */
-
+// —— 地形就绪检测 ——
+// 轮询 sampleHeightSupported，最多等 ~15s
 function checkTerrain() {
   if (!viewer) return
-
-  // 简单策略：等 3 秒让瓦片加载，然后标记就绪
-  // 如果 15 秒后 sampleHeightSupported 仍为 false，才认为无地形
   let attempts = 0
-  function poll() {
-    if (!viewer) return
-    attempts++
-    if (viewer.scene.sampleHeightSupported) {
-      terrainReady.value = true
-      return
-    }
-    if (attempts < 8) {
-      setTimeout(poll, 2000)
-    }
-    // 超过 8 次 (~16s) 放弃，保持警告状态
+  const poll = () => {
+    if (!viewer || terrainReady.value) return
+    if (viewer.scene.sampleHeightSupported) { terrainReady.value = true; return }
+    if (++attempts < 6) setTimeout(poll, 2500)
   }
-  setTimeout(poll, 3000) // 先给瓦片服务 3 秒初始化时间
+  setTimeout(poll, 3000)
 }
 
-/* ================================================================
- * 4. 点击采样
- * ================================================================ */
+// —— 标记与采样 ——
 
-function addSamplePin(lon: number, lat: number, height: number) {
+function addGroundMarker(lon: number, lat: number, text: string, color: string, scale = 0.7) {
   if (!viewer || !C) return
 
-  // 用 sampleTerrain 的高度直接定位，不经 pickPosition 的深度值
-  const entity = viewer.entities.add({
-    position: C.Cartesian3.fromRadians(lon, lat, height),
+  return viewer.entities.add({
+    position: C.Cartesian3.fromRadians(lon, lat, 0),
     billboard: {
-      image: createPinCanvas('#4da6ff'),
+      image: createPinCanvas(color),
       verticalOrigin: C.VerticalOrigin.BOTTOM,
-      scale: 0.6,
+      heightReference: C.HeightReference.CLAMP_TO_GROUND,
+      disableDepthTestDistance: Number.POSITIVE_INFINITY,
+      scale,
     },
     label: {
-      text: `${height.toFixed(0)} m`,
+      text,
       font: '13px monospace',
-      fillColor: C.Color.WHITE,
+      fillColor: C.Color.fromCssColorString(color),
       outlineColor: C.Color.fromCssColorString('#1a1a2e'),
       outlineWidth: 2,
       verticalOrigin: C.VerticalOrigin.BOTTOM,
       pixelOffset: new C.Cartesian2(0, -28),
+      heightReference: C.HeightReference.CLAMP_TO_GROUND,
+      disableDepthTestDistance: Number.POSITIVE_INFINITY,
     },
   })
+}
+
+function addSamplePin(lon: number, lat: number, height: number) {
+  const entity = addGroundMarker(lon, lat, `${height.toFixed(0)} m`, '#4da6ff', 0.6)
+  if (!entity) return
   samplePins.push(entity)
 }
 
@@ -111,9 +98,7 @@ function createPinCanvas(color: string): HTMLCanvasElement {
   return c
 }
 
-/* ================================================================
- * 5. 剖面分析
- * ================================================================ */
+// —— 剖面分析 ——
 
 async function computeProfile(startCarto: any, endCarto: any) {
   if (!viewer || !C) return
@@ -267,9 +252,7 @@ function clearAllSamples() {
   clearProfile()
 }
 
-/* ================================================================
- * 6. ScreenSpaceEventHandler
- * ================================================================ */
+// —— 点击交互 ——
 
 function setupClickHandler() {
   if (!viewer || !C) return
@@ -279,8 +262,11 @@ function setupClickHandler() {
   handler.setInputAction(async (click: any) => {
     if (!viewer || !C || profileLocked) return
 
-    // 拾取椭球面得到精确 lon/lat（数学交点，不受地形 LOD 影响）
-    const cartesian = viewer.camera.pickEllipsoid(click.position, viewer.scene.globe.ellipsoid)
+    // 优先拾取当前渲染地形，失败时回退到椭球面。
+    const ray = viewer.camera.getPickRay(click.position)
+    const cartesian = ray
+      ? viewer.scene.globe.pick(ray, viewer.scene)
+      : viewer.camera.pickEllipsoid(click.position, viewer.scene.globe.ellipsoid)
     if (!cartesian) return
 
     const carto = C.Cartographic.fromCartesian(cartesian)
@@ -294,24 +280,13 @@ function setupClickHandler() {
       if (samples[0].height !== undefined) height = samples[0].height
     }
 
-    // 用采样后的高度重建位置（不依赖 pickPosition 深度值或 CLAMP_TO_GROUND）
-    const pos = C.Cartesian3.fromRadians(carto.longitude, carto.latitude, height)
-
     if (state.profileMode) {
       if (!profileA) {
         profileA = C.Cartographic.fromRadians(carto.longitude, carto.latitude, height)
-        profileAEntity = viewer.entities.add({
-          position: pos,
-          billboard: { image: createPinCanvas('#4ade80'), verticalOrigin: C.VerticalOrigin.BOTTOM, scale: 0.8 },
-          label: { text: 'A 起点', font: '13px monospace', fillColor: C.Color.fromCssColorString('#4ade80'), outlineColor: C.Color.fromCssColorString('#1a1a2e'), outlineWidth: 2, verticalOrigin: C.VerticalOrigin.BOTTOM, pixelOffset: new C.Cartesian2(0, -28) },
-        })
+        profileAEntity = addGroundMarker(carto.longitude, carto.latitude, 'A 起点', '#4ade80', 0.8) ?? null
       } else {
         profileB = C.Cartographic.fromRadians(carto.longitude, carto.latitude, height)
-        profileBEntity = viewer.entities.add({
-          position: pos,
-          billboard: { image: createPinCanvas('#f87171'), verticalOrigin: C.VerticalOrigin.BOTTOM, scale: 0.8 },
-          label: { text: 'B 终点', font: '13px monospace', fillColor: C.Color.fromCssColorString('#f87171'), outlineColor: C.Color.fromCssColorString('#1a1a2e'), outlineWidth: 2, verticalOrigin: C.VerticalOrigin.BOTTOM, pixelOffset: new C.Cartesian2(0, -28) },
-        })
+        profileBEntity = addGroundMarker(carto.longitude, carto.latitude, 'B 终点', '#f87171', 0.8) ?? null
         state.profileMode = false
         profileLocked = true
         computeProfile(profileA, profileB)
@@ -319,30 +294,11 @@ function setupClickHandler() {
       return
     }
 
-    const pin = viewer.entities.add({
-      position: pos,
-      billboard: {
-        image: createPinCanvas('#4da6ff'),
-        verticalOrigin: C.VerticalOrigin.BOTTOM,
-        scale: 0.6,
-      },
-      label: {
-        text: `${height.toFixed(0)} m`,
-        font: '13px monospace',
-        fillColor: C.Color.WHITE,
-        outlineColor: C.Color.fromCssColorString('#1a1a2e'),
-        outlineWidth: 2,
-        verticalOrigin: C.VerticalOrigin.BOTTOM,
-        pixelOffset: new C.Cartesian2(0, -28),
-      },
-    })
-    samplePins.push(pin)
+    addSamplePin(carto.longitude, carto.latitude, height)
   }, C.ScreenSpaceEventType.LEFT_CLICK)
 }
 
-/* ================================================================
- * 7. GUI
- * ================================================================ */
+// —— GUI 控制 ——
 
 function setupGUI() {
   const stage = document.querySelector('.demo-stage') as HTMLElement
@@ -377,9 +333,7 @@ function setupGUI() {
   contourFolder.add({ disabled: '待开发' }, 'disabled').name('状态').disable()
 }
 
-/* ================================================================
- * 8. onViewerReady
- * ================================================================ */
+// —— Viewer 就绪 ——
 
 function onViewerReady(v: Cesium.Viewer) {
   viewer = v
@@ -399,53 +353,24 @@ function onViewerReady(v: Cesium.Viewer) {
   })
 
   // 珠峰参考标记
-  v.entities.add({
-    position: C.Cartesian3.fromDegrees(86.925, 27.988, 8848),
-    billboard: {
-      image: createPinCanvas('#ffd93d'),
-      verticalOrigin: C.VerticalOrigin.BOTTOM,
-      eyeOffset: new C.Cartesian3(0, 0, 10),
-      scale: 0.8,
-    },
-    label: {
-      text: '珠穆朗玛峰 8848m',
-      font: '14px monospace',
-      fillColor: C.Color.fromCssColorString('#ffd93d'),
-      outlineColor: C.Color.fromCssColorString('#1a1a2e'),
-      outlineWidth: 3,
-      style: C.LabelStyle.FILL_AND_OUTLINE,
-      verticalOrigin: C.VerticalOrigin.BOTTOM,
-      pixelOffset: new C.Cartesian2(0, -30),
-    },
-  })
+  addGroundMarker(C.Math.toRadians(86.925), C.Math.toRadians(27.988), '珠穆朗玛峰 8848m', '#ffd93d', 0.8)
 
   setupClickHandler()
   setupGUI()
 }
 
-/* ================================================================
- * 9. 清理
- * ================================================================ */
+// —— 生命周期清理 ——
 
 onUnmounted(() => {
   if (handler) { handler.destroy(); handler = null }
   if (gui) { gui.destroy(); gui = null }
 })
 
-/* ================================================================
- * TODO: 等高线生成 (Contour Line Generation)
- *
- * 入口: generateContours(bbox, interval)
- * 思路:
- *   1. 在指定范围 bbox 内做密集网格采样 (sampleTerrain, L14, 100×100+)
- *   2. 高度矩阵应用 Marching Squares 算法提取等值线
- *   3. 等值线分段 → Cesium Entity polyline 渲染
- *
- * 参考: https://en.wikipedia.org/wiki/Marching_squares
- * 依赖: 密集采样性能可接受 (100×100 = 10k 点, sampleTerrain 批量处理)
- *
- * NPM 备选: turf.js (turf.isolines) 可直接从点集生成等值线
- * ================================================================ */
+/*
+ * TODO: 等高线生成 — generateContours(bbox, interval)
+ * 密集网格采样 → Marching Squares 提取等值线 → polyline 渲染
+ * NPM 备选: turf.isolines()
+ */
 </script>
 
 <template>
@@ -592,12 +517,19 @@ viewer.scene.globe.terrainExaggerationRelativeHeight = 0.0  // 基准面</code><
             </tbody>
           </table>
           <p class="mt-2"><b>🔑 关键坑</b>：即使你通过 <code>sampleTerrain</code> 拿到了正确高度，把 Entity position 设为 <code>fromDegrees(lon, lat, height)</code> <b>也不会贴地形</b>。Cesium 的 terrain 渲染和 Entity 绝对坐标是两个独立系统，视觉上不会对齐。</p>
+          <p class="mt-2"><b>🔑 关键坑之二</b>：仅用 <code>CLAMP_TO_GROUND</code> 会导致 billboard 和地形 z-fighting（深度值相同，GPU 无法判断谁在前），表现为图标"沉入地下"。必须同时设置 <code>disableDepthTestDistance: Number.POSITIVE_INFINITY</code> 关闭该 Entity 的深度测试。</p>
           <pre class="bg-zinc-900 p-2 rounded text-xs mt-1"><code>// ❌ 高度值正确，但图标不贴地形
 position: Cesium.Cartesian3.fromDegrees(lon, lat, sampledHeight)
 
-// ✅ 高度设 0，靠 CLAMP_TO_GROUND 自动贴地形
-position: Cesium.Cartesian3.fromDegrees(lon, lat, 0),
+// ❌ 只设 CLAMP_TO_GROUND → z-fighting → 图标沉入地下
 billboard: { heightReference: Cesium.HeightReference.CLAMP_TO_GROUND }
+
+// ✅ 高度设 0 + CLAMP_TO_GROUND + disableDepthTestDistance（二者缺一不可）
+position: Cesium.Cartesian3.fromDegrees(lon, lat, 0),
+billboard: {
+  heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
+  disableDepthTestDistance: Number.POSITIVE_INFINITY,  // ← 关键！
+}
 
 // 高度数值只显示在 label 文字里，不参与位置计算
 label: { text: `${sampledHeight.toFixed(0)} m` }</code></pre>
