@@ -21,7 +21,7 @@ const effects = reactive({
 })
 
 let viewer: Cesium.Viewer | null = null
-let C: any = null
+let cesium: any = null
 let gui: any = null
 let tileset: any = null
 const customStages: Record<string, any> = {}
@@ -29,25 +29,25 @@ const customStages: Record<string, any> = {}
 function onViewerReady(v: Cesium.Viewer) {
   viewer = v
   C = (window as any).Cesium
-  if (!C) return
+  if (!cesium) return
 
   // 尝试加载大雁塔 3D Tiles
   const tilesetUrl = '/data/3dtiles/dayanta/tileset.json'
   fetch(tilesetUrl, { method: 'HEAD' })
-    .then(r => r.ok ? C.Cesium3DTileset.fromUrl(tilesetUrl) : null)
+    .then(r => r.ok ? cesium.Cesium3DTileset.fromUrl(tilesetUrl) : null)
     .then(ts => {
       if (ts) {
         tileset = ts
         viewer!.scene.primitives.add(ts)
         viewer!.camera.flyTo({
-          destination: C.Cartesian3.fromDegrees(108.96, 34.22, 800),
-          orientation: { heading: C.Math.toRadians(0), pitch: C.Math.toRadians(-35), roll: 0 },
+          destination: cesium.Cartesian3.fromDegrees(108.96, 34.22, 800),
+          orientation: { heading: cesium.Math.toRadians(0), pitch: cesium.Math.toRadians(-35), roll: 0 },
           duration: 2.0,
         })
       } else {
         viewer!.camera.flyTo({
-          destination: C.Cartesian3.fromDegrees(121.50, 31.23, 15000),
-          orientation: { heading: C.Math.toRadians(0), pitch: C.Math.toRadians(-55), roll: 0 },
+          destination: cesium.Cartesian3.fromDegrees(121.50, 31.23, 15000),
+          orientation: { heading: cesium.Math.toRadians(0), pitch: cesium.Math.toRadians(-55), roll: 0 },
           duration: 2.0,
         })
       }
@@ -55,16 +55,16 @@ function onViewerReady(v: Cesium.Viewer) {
 
   // POI 标注
   const POIS = [
-    { lon: 108.959, lat: 34.218, alt: 720, label: '大雁塔', color: C.Color.CYAN },
-    { lon: 108.963, lat: 34.215, alt: 710, label: '南广场', color: C.Color.LIME },
-    { lon: 108.955, lat: 34.221, alt: 715, label: '北广场', color: C.Color.YELLOW },
+    { lon: 108.959, lat: 34.218, alt: 720, label: '大雁塔', color: cesium.Color.CYAN },
+    { lon: 108.963, lat: 34.215, alt: 710, label: '南广场', color: cesium.Color.LIME },
+    { lon: 108.955, lat: 34.221, alt: 715, label: '北广场', color: cesium.Color.YELLOW },
   ]
   for (const poi of POIS) {
     v.entities.add({
-      position: C.Cartesian3.fromDegrees(poi.lon, poi.lat, poi.alt),
+      position: cesium.Cartesian3.fromDegrees(poi.lon, poi.lat, poi.alt),
       point: { pixelSize: 10, color: poi.color },
-      label: { text: poi.label, font: '12px monospace', fillColor: C.Color.WHITE,
-        verticalOrigin: C.VerticalOrigin.BOTTOM, pixelOffset: new C.Cartesian2(0, -12) },
+      label: { text: poi.label, font: '12px monospace', fillColor: cesium.Color.WHITE,
+        verticalOrigin: cesium.VerticalOrigin.BOTTOM, pixelOffset: new cesium.Cartesian2(0, -12) },
     })
   }
 

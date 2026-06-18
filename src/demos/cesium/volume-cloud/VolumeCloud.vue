@@ -16,7 +16,7 @@ const viewerReady = ref(false)
 const showTutorial = ref(false)
 
 let viewer: Cesium.Viewer | null = null
-let C: any = null
+let cesium: any = null
 let gui: any = null
 let layers: any[] = []
 let textures: HTMLCanvasElement[] = []
@@ -31,20 +31,20 @@ const settings = reactive<CloudSettings>({
 })
 
 function rebuild() {
-  if (!viewer || !C) return
+  if (!viewer || !cesium) return
   layers.forEach(l => { if (!l.isDestroyed?.()) viewer!.scene.primitives.remove(l) })
   layers = []
-  const r = buildCloudLayers(viewer, C, settings)
+  const r = buildCloudLayers(viewer, cesium, settings)
   layers = r.layers
   textures = r.textures
 }
 
 function onViewerReady(v: Cesium.Viewer) {
   viewer = v
-  C = window.Cesium
+  cesium = window.Cesium
   viewerReady.value = true
 
-  const r = buildCloudLayers(v, C, settings)
+  const r = buildCloudLayers(v, cesium, settings)
   layers = r.layers
   textures = r.textures
 
@@ -52,10 +52,10 @@ function onViewerReady(v: Cesium.Viewer) {
   if (stage) gui = setupGUI(stage, settings, rebuild)
 
   v.camera.flyTo({
-    destination: C.Cartesian3.fromDegrees(116.5, 39.5, 250000),
+    destination: cesium.Cartesian3.fromDegrees(116.5, 39.5, 250000),
     orientation: {
-      heading: C.Math.toRadians(10),
-      pitch: C.Math.toRadians(-50),
+      heading: cesium.Math.toRadians(10),
+      pitch: cesium.Math.toRadians(-50),
       roll: 0,
     },
     duration: 2.0,

@@ -20,8 +20,8 @@ export interface PrimitiveSettings {
  * CylinderGeometry(slices:6) — 圆周 6 等分 → 正六边形截面
  * 几何体中心在原点，沿 Z 轴站立（顶面 z=+length/2，底面 z=-length/2）
  */
-export function createHexPrism(C: any, radius: number, height: number) {
-  return new C.CylinderGeometry({
+export function createHexPrism(cesium: any, radius: number, height: number) {
+  return new cesium.CylinderGeometry({
     length: height,
     topRadius: radius,
     bottomRadius: radius,
@@ -37,7 +37,7 @@ export function createHexPrism(C: any, radius: number, height: number) {
  */
 export function buildPrimitive(
   viewer: Cesium.Viewer,
-  C: any,
+  cesium: any,
   settings: PrimitiveSettings,
 ): any {
   const { count, height, radius, spacing } = settings
@@ -58,26 +58,26 @@ export function buildPrimitive(
       const lat = centerLat + (row * spacing - halfExtent) / METERS_PER_DEG_LAT
 
       // ENU 原点抬高 height/2 → 柱底刚好贴地，不会半埋入椭球
-      const modelMatrix = C.Transforms.eastNorthUpToFixedFrame(
-        C.Cartesian3.fromDegrees(lon, lat, height / 2),
+      const modelMatrix = cesium.Transforms.eastNorthUpToFixedFrame(
+        cesium.Cartesian3.fromDegrees(lon, lat, height / 2),
       )
 
       const hue = (1 - col / Math.max(count - 1, 1)) * (240 / 360)
-      const color = C.Color.fromHsl(hue, 0.7, 0.55, 0.55)
+      const color = cesium.Color.fromHsl(hue, 0.7, 0.55, 0.55)
 
-      instances.push(new C.GeometryInstance({
+      instances.push(new cesium.GeometryInstance({
         geometry,
         modelMatrix,
         attributes: {
-          color: C.ColorGeometryInstanceAttribute.fromColor(color),
+          color: cesium.ColorGeometryInstanceAttribute.fromColor(color),
         },
       }))
     }
   }
 
-  const p = new C.Primitive({
+  const p = new cesium.Primitive({
     geometryInstances: instances,
-    appearance: new C.PerInstanceColorAppearance({
+    appearance: new cesium.PerInstanceColorAppearance({
       flat: true,
       translucent: true,
     }),

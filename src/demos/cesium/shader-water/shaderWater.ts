@@ -104,10 +104,10 @@ function hexToRgb(hex: string) {
   }
 }
 
-export function buildMaterial(C: any, settings: WaterSettings) {
+export function buildMaterial(cesium: any, settings: WaterSettings) {
   const s = hexToRgb(settings.shallowColor)
   const d = hexToRgb(settings.deepColor)
-  return new C.Material({
+  return new cesium.Material({
     fabric: {
       type: 'WaterCustom',
       uniforms: {
@@ -127,28 +127,28 @@ export function buildMaterial(C: any, settings: WaterSettings) {
 
 export function buildPrimitive(
   viewer: Cesium.Viewer,
-  C: any,
+  cesium: any,
   settings: WaterSettings,
 ): { primitive: any; material: any; timeUpdater: () => void } {
   const material = buildMaterial(C, settings)
 
-  const rect = C.Rectangle.fromDegrees(115.5, 39.0, 117.5, 40.5)
-  const geometry = new C.RectangleGeometry({
+  const rect = cesium.Rectangle.fromDegrees(115.5, 39.0, 117.5, 40.5)
+  const geometry = new cesium.RectangleGeometry({
     rectangle: rect,
-    vertexFormat: C.VertexFormat.ALL,
+    vertexFormat: cesium.VertexFormat.ALL,
     height: 1,
     granularity: 0.05 * (Math.PI / 180),
   })
 
-  const instance = new C.GeometryInstance({ geometry, id: 'water-surface' })
+  const instance = new cesium.GeometryInstance({ geometry, id: 'water-surface' })
 
-  const appearance = new C.EllipsoidSurfaceAppearance({
+  const appearance = new cesium.EllipsoidSurfaceAppearance({
     aboveGround: false,
     material,
     translucent: true,
   })
 
-  const primitive = new C.Primitive({
+  const primitive = new cesium.Primitive({
     geometryInstances: [instance],
     appearance,
     asynchronous: false,

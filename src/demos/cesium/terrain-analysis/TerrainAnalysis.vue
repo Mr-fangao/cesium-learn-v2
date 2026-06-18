@@ -20,7 +20,7 @@ const terrainReady = ref(false)
 const state = reactive<TerrainState>({ exaggeration: 3.0, sampleLevel: 11, profileMode: false })
 
 let viewer: Cesium.Viewer | null = null
-let C: any = null
+let cesium: any = null
 let gui: any = null
 let handler: any = null
 let samplePins: Cesium.Entity[] = []
@@ -42,9 +42,9 @@ function clearAllSamples() {
 }
 
 async function onProfileReady(a: any, b: any) {
-  if (!viewer || !C) { profileData.locked = false; return }
+  if (!viewer || !cesium) { profileData.locked = false; return }
   try {
-    const r = await computeProfile(viewer, C, a, b, state.sampleLevel)
+    const r = await computeProfile(viewer, cesium, a, b, state.sampleLevel)
     if (r) {
       showProfile.value = true
       await nextTick()
@@ -58,19 +58,19 @@ async function onProfileReady(a: any, b: any) {
 }
 
 function onViewerReady(v: Cesium.Viewer) {
-  viewer = v; C = window.Cesium
+  viewer = v; cesium = window.Cesium
   v.scene.globe.terrainExaggeration = state.exaggeration
   checkTerrain(v, (v) => { terrainReady.value = v })
 
   v.camera.flyTo({
-    destination: C.Cartesian3.fromDegrees(86.925, 27.988, 30000),
-    orientation: { heading: C.Math.toRadians(15), pitch: C.Math.toRadians(-35), roll: 0 },
+    destination: cesium.Cartesian3.fromDegrees(86.925, 27.988, 30000),
+    orientation: { heading: cesium.Math.toRadians(15), pitch: cesium.Math.toRadians(-35), roll: 0 },
     duration: 0,
   })
 
-  addGroundMarker(v, C, C.Math.toRadians(86.925), C.Math.toRadians(27.988), '珠穆朗玛峰 8848m', '#ffd93d', 0.8)
+  addGroundMarker(v, cesium, cesium.Math.toRadians(86.925), cesium.Math.toRadians(27.988), '珠穆朗玛峰 8848m', '#ffd93d', 0.8)
 
-  handler = setupClickHandler(v, C, state, samplePins, profileData, onProfileReady, () => {})
+  handler = setupClickHandler(v, cesium, state, samplePins, profileData, onProfileReady, () => {})
 
   const stage = document.querySelector('.demo-stage') as HTMLElement
   if (stage) gui = setupGUI(stage, state, () => viewer, () => { clearProfile(); state.profileMode = true }, clearAllSamples)

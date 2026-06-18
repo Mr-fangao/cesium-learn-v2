@@ -69,7 +69,7 @@ const CUSTOM_EFFECTS = [
 ]
 
 export function addCustomEffect(
-  viewer: Cesium.Viewer, C: any, key: string,
+  viewer: Cesium.Viewer, cesium: any, key: string,
   customStages: Record<string, any>, effects: any,
 ): void {
   if (customStages[key]) return
@@ -88,7 +88,7 @@ export function addCustomEffect(
     }
   }
 
-  const stage = new C.PostProcessStage({
+  const stage = new cesium.PostProcessStage({
     fragmentShader: def.shader, uniforms, name: `pp_${key}`,
   })
   viewer.scene.postProcessStages.add(stage)
@@ -128,14 +128,14 @@ export function toggleBloom(viewer: Cesium.Viewer | null, v: boolean, intensity:
 }
 
 export function toggleBrightness(
-  viewer: Cesium.Viewer | null, C: any, v: boolean, brightnessValue: number,
+  viewer: Cesium.Viewer | null, cesium: any, v: boolean, brightnessValue: number,
   customStages: Record<string, any>,
 ): void {
   if (!viewer) return
   const key = 'brightness'
   if (v) {
     if (customStages[key]) return
-    const stage = C.PostProcessStageLibrary.createBrightnessStage()
+    const stage = cesium.PostProcessStageLibrary.createBrightnessStage()
     stage.uniforms.brightness = brightnessValue
     viewer.scene.postProcessStages.add(stage)
     customStages[key] = stage
@@ -148,14 +148,14 @@ export function toggleBrightness(
 }
 
 export function toggleNightVision(
-  viewer: Cesium.Viewer | null, C: any, v: boolean,
+  viewer: Cesium.Viewer | null, cesium: any, v: boolean,
   customStages: Record<string, any>,
 ): void {
   if (!viewer) return
   const key = 'nightVision'
   if (v) {
     if (customStages[key]) return
-    const stage = C.PostProcessStageLibrary.createNightVisionStage()
+    const stage = cesium.PostProcessStageLibrary.createNightVisionStage()
     viewer.scene.postProcessStages.add(stage)
     customStages[key] = stage
   } else {
@@ -167,19 +167,19 @@ export function toggleNightVision(
 }
 
 export function toggleSilhouette(
-  viewer: Cesium.Viewer | null, C: any, v: boolean, color: string,
+  viewer: Cesium.Viewer | null, cesium: any, v: boolean, color: string,
   customStages: Record<string, any>,
 ): void {
   if (!viewer) return
   const key = 'silhouette'
   if (v) {
     if (customStages[key]) return
-    if (!C.PostProcessStageLibrary.isSilhouetteSupported(viewer.scene)) {
+    if (!cesium.PostProcessStageLibrary.isSilhouetteSupported(viewer.scene)) {
       console.warn('[PostProcess] 当前环境不支持剪影')
       return
     }
-    const stage = C.PostProcessStageLibrary.createSilhouetteStage()
-    stage.uniforms.color = C.Color.fromCssColorString(color)
+    const stage = cesium.PostProcessStageLibrary.createSilhouetteStage()
+    stage.uniforms.color = cesium.Color.fromCssColorString(color)
     stage.uniforms.length = 0.25
     viewer.scene.postProcessStages.add(stage)
     customStages[key] = stage
@@ -205,7 +205,7 @@ export function resetAll(viewer: Cesium.Viewer | null, effects: any, customStage
  * ================================================================ */
 
 export function setupGUI(
-  stage: HTMLElement, effects: any, viewer: () => Cesium.Viewer | null, C: () => any,
+  stage: HTMLElement, effects: any, viewer: () => Cesium.Viewer | null, cesium: () => any,
   customStages: Record<string, any>,
 ): any {
   const gui = createDemoGui(stage, 280)

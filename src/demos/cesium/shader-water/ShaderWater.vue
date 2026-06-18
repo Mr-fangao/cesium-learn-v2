@@ -13,7 +13,7 @@ const viewerReady = ref(false)
 const showTutorial = ref(false)
 
 let viewer: Cesium.Viewer | null = null
-let C: any = null
+let cesium: any = null
 let gui: any = null
 let primitive: any = null
 let timeUpdater: (() => void) | null = null
@@ -29,20 +29,20 @@ const settings = reactive<WaterSettings>({
 })
 
 function rebuild() {
-  if (!viewer || !C) return
+  if (!viewer || !cesium) return
   if (primitive) { viewer.scene.primitives.remove(primitive); primitive = null }
   if (timeUpdater) { viewer.scene.preUpdate.removeEventListener(timeUpdater); timeUpdater = null }
-  const r = buildPrimitive(viewer, C, settings)
+  const r = buildPrimitive(viewer, cesium, settings)
   primitive = r.primitive
   timeUpdater = r.timeUpdater
 }
 
 function onViewerReady(v: Cesium.Viewer) {
   viewer = v
-  C = window.Cesium
+  cesium = window.Cesium
   viewerReady.value = true
 
-  const r = buildPrimitive(v, C, settings)
+  const r = buildPrimitive(v, cesium, settings)
   primitive = r.primitive
   timeUpdater = r.timeUpdater
 
@@ -50,10 +50,10 @@ function onViewerReady(v: Cesium.Viewer) {
   if (stage) gui = setupGUI(stage, settings, rebuild)
 
   v.camera.flyTo({
-    destination: C.Cartesian3.fromDegrees(116.4, 39.7, 150000),
+    destination: cesium.Cartesian3.fromDegrees(116.4, 39.7, 150000),
     orientation: {
-      heading: C.Math.toRadians(15),
-      pitch: C.Math.toRadians(-55),
+      heading: cesium.Math.toRadians(15),
+      pitch: cesium.Math.toRadians(-55),
       roll: 0,
     },
     duration: 2.0,

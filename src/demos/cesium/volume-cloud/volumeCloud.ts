@@ -96,11 +96,11 @@ czm_material czm_getMaterial(czm_materialInput materialInput) {
 
 export function buildCloudLayers(
   viewer: Cesium.Viewer,
-  C: any,
+  cesium: any,
   settings: CloudSettings,
 ): { layers: any[]; textures: HTMLCanvasElement[] } {
   const { layerCount, totalThickness, opacity, coverage, baseAltitude } = settings
-  const rect = C.Rectangle.fromDegrees(114, 38, 119, 41)
+  const rect = cesium.Rectangle.fromDegrees(114, 38, 119, 41)
 
   const layers: any[] = []
   const textures: HTMLCanvasElement[] = []
@@ -113,16 +113,16 @@ export function buildCloudLayers(
     const texCanvas = generateCloudTexture(i, layerCount, coverage, settings.textureSize)
     textures.push(texCanvas)
 
-    const geometry = new C.RectangleGeometry({
+    const geometry = new cesium.RectangleGeometry({
       rectangle: rect,
-      vertexFormat: C.VertexFormat.ALL,
+      vertexFormat: cesium.VertexFormat.ALL,
       height: alt,
       granularity: 0.15 * (Math.PI / 180),
     })
 
-    const instance = new C.GeometryInstance({ geometry, id: `cloud-${i}` })
+    const instance = new cesium.GeometryInstance({ geometry, id: `cloud-${i}` })
 
-    const material = new C.Material({
+    const material = new cesium.Material({
       fabric: {
         type: `CloudLayer_${i}`,
         uniforms: { uCloudTexture: texCanvas, uLayerAlpha: layerAlpha },
@@ -130,14 +130,14 @@ export function buildCloudLayers(
       },
     })
 
-    const appearance = new C.MaterialAppearance({
+    const appearance = new cesium.MaterialAppearance({
       material,
       translucent: true,
       flat: false,
-      materialSupport: C.MaterialAppearance.MaterialSupport.ALL,
+      materialSupport: cesium.MaterialAppearance.MaterialSupport.ALL,
     })
 
-    const primitive = new C.Primitive({
+    const primitive = new cesium.Primitive({
       geometryInstances: [instance],
       appearance,
       asynchronous: false,

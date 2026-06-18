@@ -19,7 +19,7 @@ const state = reactive({
 })
 
 let viewer: Cesium.Viewer | null = null
-let C: any = null
+let cesium: any = null
 let rocketEntity: Cesium.Entity | null = null
 let flamePS: any = null
 let smokePS: any = null
@@ -32,12 +32,12 @@ function launch() {
   if (!viewer || state.launched) return
   state.launched = true; state.flightTime = 0
 
-  const baseTime = C.JulianDate.fromIso8601('2024-01-01T00:00:00Z')
-  const sp = new C.SampledPositionProperty()
-  const sampleTime = new C.JulianDate()
+  const baseTime = cesium.JulianDate.fromIso8601('2024-01-01T00:00:00Z')
+  const sp = new cesium.SampledPositionProperty()
+  const sampleTime = new cesium.JulianDate()
   trajectorySamples.forEach((s) => {
-    C.JulianDate.addSeconds(baseTime, s.time, sampleTime)
-    sp.addSample(C.JulianDate.clone(sampleTime), s.pos)
+    cesium.JulianDate.addSeconds(baseTime, s.time, sampleTime)
+    sp.addSample(cesium.JulianDate.clone(sampleTime), s.pos)
   })
   rocketEntity!.position = sp
   flamePS.show = state.showFlame
@@ -46,14 +46,14 @@ function launch() {
   launchStartJulian = baseTime
   viewer.clock.startTime = baseTime.clone()
   viewer.clock.currentTime = baseTime.clone()
-  viewer.clock.stopTime = C.JulianDate.addSeconds(baseTime, 120, new C.JulianDate())
-  viewer.clock.clockRange = C.ClockRange.LOOP_STOP
+  viewer.clock.stopTime = cesium.JulianDate.addSeconds(baseTime, 120, new cesium.JulianDate())
+  viewer.clock.clockRange = cesium.ClockRange.LOOP_STOP
   viewer.clock.multiplier = state.speed
   viewer.clock.shouldAnimate = true
 
   viewer.scene.camera.flyTo({
-    destination: C.Cartesian3.fromDegrees(110.951, 19.616, 350),
-    orientation: { heading: C.Math.toRadians(330), pitch: C.Math.toRadians(-35), roll: 0 },
+    destination: cesium.Cartesian3.fromDegrees(110.951, 19.616, 350),
+    orientation: { heading: cesium.Math.toRadians(330), pitch: cesium.Math.toRadians(-35), roll: 0 },
     duration: 1.5,
   })
 }
@@ -62,39 +62,39 @@ function reset() {
   if (!viewer) return
   state.launched = false; state.flightTime = 0
   viewer.clock.shouldAnimate = false
-  viewer.clock.currentTime = C.JulianDate.fromIso8601('2024-01-01T00:00:00Z')
+  viewer.clock.currentTime = cesium.JulianDate.fromIso8601('2024-01-01T00:00:00Z')
   viewer.clock.multiplier = state.speed
-  rocketEntity!.position = C.Cartesian3.fromDegrees(110.949, 19.618, 10)
+  rocketEntity!.position = cesium.Cartesian3.fromDegrees(110.949, 19.618, 10)
   rocketEntity!.orientation = undefined as any
 
   if (flamePS) { viewer.scene.primitives.remove(flamePS); flamePS.destroy() }
   if (smokePS) { viewer.scene.primitives.remove(smokePS); smokePS.destroy() }
   const fImg = createGlowImage('rgba(255,255,100,1)', 'rgba(255,50,0,0)')
   const sImg = createGlowImage('rgba(255,255,255,0.7)', 'rgba(180,180,180,0)')
-  flamePS = createFlameSystem(C, fImg)
-  smokePS = createSmokeSystem(C, sImg)
+  flamePS = createFlameSystem(cesium, fImg)
+  smokePS = createSmokeSystem(cesium, sImg)
   viewer.scene.primitives.add(flamePS)
   viewer.scene.primitives.add(smokePS)
 
   viewer.scene.camera.flyTo({
-    destination: C.Cartesian3.fromDegrees(110.949, 19.618, 800),
-    orientation: { heading: C.Math.toRadians(30), pitch: C.Math.toRadians(-45), roll: 0 },
+    destination: cesium.Cartesian3.fromDegrees(110.949, 19.618, 800),
+    orientation: { heading: cesium.Math.toRadians(30), pitch: cesium.Math.toRadians(-45), roll: 0 },
     duration: 1,
   })
 }
 
 function onViewerReady(v: Cesium.Viewer) {
-  viewer = v; C = window.Cesium
+  viewer = v; cesium = window.Cesium
   ;(v.cesiumWidget.creditContainer as HTMLElement).style.display = 'none'
 
-  buildLaunchPad(v, C)
-  rocketEntity = buildRocket(v, C)
-  trajectorySamples = buildTrajectory(C)
+  buildLaunchPad(v, cesium)
+  rocketEntity = buildRocket(v, cesium)
+  trajectorySamples = buildTrajectory(cesium)
 
   const fImg = createGlowImage('rgba(255,255,100,1)', 'rgba(255,50,0,0)')
   const sImg = createGlowImage('rgba(255,255,255,0.7)', 'rgba(180,180,180,0)')
-  flamePS = createFlameSystem(C, fImg)
-  smokePS = createSmokeSystem(C, sImg)
+  flamePS = createFlameSystem(cesium, fImg)
+  smokePS = createSmokeSystem(cesium, sImg)
   v.scene.primitives.add(flamePS)
   v.scene.primitives.add(smokePS)
 
@@ -106,7 +106,7 @@ function onViewerReady(v: Cesium.Viewer) {
 
   v.clock.onTick.addEventListener((clock: Cesium.Clock) => {
     if (state.launched && launchStartJulian) {
-      state.flightTime = Math.max(0, C.JulianDate.secondsDifference(clock.currentTime, launchStartJulian))
+      state.flightTime = Math.max(0, cesium.JulianDate.secondsDifference(clock.currentTime, launchStartJulian))
     }
   })
 

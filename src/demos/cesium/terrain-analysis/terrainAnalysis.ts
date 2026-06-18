@@ -41,35 +41,35 @@ export function createPinCanvas(color: string): HTMLCanvasElement {
 }
 
 export function addGroundMarker(
-  viewer: Cesium.Viewer, C: any, lon: number, lat: number,
+  viewer: Cesium.Viewer, cesium: any, lon: number, lat: number,
   text: string, color: string, scale = 0.7,
 ): Cesium.Entity | undefined {
   return viewer.entities.add({
-    position: C.Cartesian3.fromRadians(lon, lat, 0),
+    position: cesium.Cartesian3.fromRadians(lon, lat, 0),
     billboard: {
       image: createPinCanvas(color),
-      verticalOrigin: C.VerticalOrigin.BOTTOM,
-      heightReference: C.HeightReference.CLAMP_TO_GROUND,
+      verticalOrigin: cesium.VerticalOrigin.BOTTOM,
+      heightReference: cesium.HeightReference.CLAMP_TO_GROUND,
       disableDepthTestDistance: Number.POSITIVE_INFINITY,
       scale,
     },
     label: {
       text, font: '13px monospace',
-      fillColor: C.Color.fromCssColorString(color),
-      outlineColor: C.Color.fromCssColorString('#1a1a2e'), outlineWidth: 2,
-      verticalOrigin: C.VerticalOrigin.BOTTOM,
-      pixelOffset: new C.Cartesian2(0, -28),
-      heightReference: C.HeightReference.CLAMP_TO_GROUND,
+      fillColor: cesium.Color.fromCssColorString(color),
+      outlineColor: cesium.Color.fromCssColorString('#1a1a2e'), outlineWidth: 2,
+      verticalOrigin: cesium.VerticalOrigin.BOTTOM,
+      pixelOffset: new cesium.Cartesian2(0, -28),
+      heightReference: cesium.HeightReference.CLAMP_TO_GROUND,
       disableDepthTestDistance: Number.POSITIVE_INFINITY,
     },
   })
 }
 
 export function addSamplePin(
-  viewer: Cesium.Viewer, C: any, lon: number, lat: number, height: number,
+  viewer: Cesium.Viewer, cesium: any, lon: number, lat: number, height: number,
   samplePins: Cesium.Entity[],
 ): void {
-  const entity = addGroundMarker(viewer, C, lon, lat, `${height.toFixed(0)} m`, '#4da6ff', 0.6)
+  const entity = addGroundMarker(viewer, cesium, lon, lat, `${height.toFixed(0)} m`, '#4da6ff', 0.6)
   if (entity) samplePins.push(entity)
 }
 
@@ -78,19 +78,19 @@ export function addSamplePin(
  * ================================================================ */
 
 export async function computeProfile(
-  viewer: Cesium.Viewer, C: any,
+  viewer: Cesium.Viewer, cesium: any,
   startCarto: any, endCarto: any, level: number,
 ): Promise<{ samples: any[]; distances: number[] } | null> {
   const tp = viewer.terrainProvider
   if (!tp) return null
 
-  const geodesic = new C.EllipsoidGeodesic(startCarto, endCarto)
+  const geodesic = new cesium.EllipsoidGeodesic(startCarto, endCarto)
   const samples: any[] = []
   for (let i = 0; i <= 100; i++) {
-    samples.push(geodesic.interpolateUsingFraction(i / 100, new C.Cartographic()))
+    samples.push(geodesic.interpolateUsingFraction(i / 100, new cesium.Cartographic()))
   }
 
-  await C.sampleTerrain(tp, level, samples)
+  await cesium.sampleTerrain(tp, level, samples)
 
   const totalD = geodesic.surfaceDistance
   const distances = samples.map((_, i) => (totalD * i) / (samples.length - 1))
@@ -178,13 +178,13 @@ export function drawProfileChart(samples: any[], distances: number[]): void {
  * ================================================================ */
 
 export function setupClickHandler(
-  viewer: Cesium.Viewer, C: any,
+  viewer: Cesium.Viewer, cesium: any,
   state: TerrainState, samplePins: Cesium.Entity[],
   profileData: { a: any; b: any; aEntity: Cesium.Entity | null; bEntity: Cesium.Entity | null; locked: boolean },
   onProfileReady: (a: any, b: any) => void,
   onSampleAdded: () => void,
 ): any {
-  const handler = new C.ScreenSpaceEventHandler(viewer.scene.canvas)
+  const handler = new cesium.ScreenSpaceEventHandler(viewer.scene.canvas)
 
   handler.setInputAction(async (click: any) => {
     if (profileData.locked) return
@@ -195,22 +195,22 @@ export function setupClickHandler(
       : viewer.camera.pickEllipsoid(click.position, viewer.scene.globe.ellipsoid)
     if (!cartesian) return
 
-    const carto = C.Cartographic.fromCartesian(cartesian)
+    const carto = cesium.Cartographic.fromCartesian(cartesian)
     let height = carto.height
     const tp = viewer.terrainProvider
     if (tp) {
-      const samples = [C.Cartographic.clone(carto)]
-      await C.sampleTerrain(tp, state.sampleLevel, samples)
+      const samples = [cesium.Cartographic.clone(carto)]
+      await cesium.sampleTerrain(tp, state.sampleLevel, samples)
       if (samples[0].height !== undefined) height = samples[0].height
     }
 
     if (state.profileMode) {
       if (!profileData.a) {
-        profileData.a = C.Cartographic.fromRadians(carto.longitude, carto.latitude, height)
-        profileData.aEntity = addGroundMarker(viewer, C, carto.longitude, carto.latitude, 'A 起点', '#4ade80', 0.8) ?? null
+        profileData.a = cesium.Cartographic.fromRadians(carto.longitude, carto.latitude, height)
+        profileData.aEntity = addGroundMarker(viewer, cesium, carto.longitude, carto.latitude, 'A 起点', '#4ade80', 0.8) ?? null
       } else {
-        profileData.b = C.Cartographic.fromRadians(carto.longitude, carto.latitude, height)
-        profileData.bEntity = addGroundMarker(viewer, C, carto.longitude, carto.latitude, 'B 终点', '#f87171', 0.8) ?? null
+        profileData.b = cesium.Cartographic.fromRadians(carto.longitude, carto.latitude, height)
+        profileData.bEntity = addGroundMarker(viewer, cesium, carto.longitude, carto.latitude, 'B 终点', '#f87171', 0.8) ?? null
         state.profileMode = false
         profileData.locked = true
         onProfileReady(profileData.a, profileData.b)
@@ -218,9 +218,9 @@ export function setupClickHandler(
       return
     }
 
-    addSamplePin(viewer, C, carto.longitude, carto.latitude, height, samplePins)
+    addSamplePin(viewer, cesium, carto.longitude, carto.latitude, height, samplePins)
     onSampleAdded()
-  }, C.ScreenSpaceEventType.LEFT_CLICK)
+  }, cesium.ScreenSpaceEventType.LEFT_CLICK)
 
   return handler
 }

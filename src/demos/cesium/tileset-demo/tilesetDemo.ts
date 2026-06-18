@@ -48,19 +48,19 @@ export function clearTileset(viewer: Cesium.Viewer | null, tileset: any): any {
 }
 
 export async function loadModel(
-  viewer: Cesium.Viewer, C: any, modelIndex: number, tileset: any,
+  viewer: Cesium.Viewer, cesium: any, modelIndex: number, tileset: any,
   showBoundingVolume: boolean,
 ): Promise<any> {
   const model = MODELS[modelIndex]
   tileset = clearTileset(viewer, tileset)
 
-  const newTileset = await C.Cesium3DTileset.fromUrl(model.url)
+  const newTileset = await cesium.Cesium3DTileset.fromUrl(model.url)
   newTileset.debugShowBoundingVolume = showBoundingVolume
   viewer.scene.primitives.add(newTileset)
 
   const [lon, lat, h] = model.homePosition
   viewer.camera.flyTo({
-    destination: C.Cartesian3.fromDegrees(lon, lat, h),
+    destination: cesium.Cartesian3.fromDegrees(lon, lat, h),
     duration: 1.5,
   })
 
@@ -68,14 +68,14 @@ export async function loadModel(
 }
 
 export function applyCurrentStyle(
-  C: any, tileset: any, modelIndex: number, opacity: number,
+  cesium: any, tileset: any, modelIndex: number, opacity: number,
 ): void {
   if (!isTilesetAlive(tileset, null)) return
   const model = MODELS[modelIndex]
   const styleName = model.styleOptions[model.styleIndex]
 
   tileset.style = undefined
-  tileset.colorBlendMode = C.Cesium3DTileColorBlendMode?.HIGHLIGHT ?? 0
+  tileset.colorBlendMode = cesium.Cesium3DTileColorBlendMode?.HIGHLIGHT ?? 0
   tileset.colorBlendAmount = opacity
 
   switch (model.id) {
@@ -83,12 +83,12 @@ export function applyCurrentStyle(
       switch (styleName) {
         case '原始纹理': break
         case '蓝色调':
-          tileset.style = new C.Cesium3DTileStyle({ color: "color('#4488cc')" })
-          tileset.colorBlendMode = C.Cesium3DTileColorBlendMode?.REPLACE ?? 1
+          tileset.style = new cesium.Cesium3DTileStyle({ color: "color('#4488cc')" })
+          tileset.colorBlendMode = cesium.Cesium3DTileColorBlendMode?.REPLACE ?? 1
           break
         case '半透明':
-          tileset.style = new C.Cesium3DTileStyle({ color: "color('white', 0.35)" })
-          tileset.colorBlendMode = C.Cesium3DTileColorBlendMode?.MIX ?? 0
+          tileset.style = new cesium.Cesium3DTileStyle({ color: "color('white', 0.35)" })
+          tileset.colorBlendMode = cesium.Cesium3DTileColorBlendMode?.MIX ?? 0
           break
       }
       break
@@ -96,16 +96,16 @@ export function applyCurrentStyle(
       switch (styleName) {
         case '原始': break
         case '蓝色调':
-          tileset.style = new C.Cesium3DTileStyle({ color: "color('#5b9bd5')" })
-          tileset.colorBlendMode = C.Cesium3DTileColorBlendMode?.REPLACE ?? 1
+          tileset.style = new cesium.Cesium3DTileStyle({ color: "color('#5b9bd5')" })
+          tileset.colorBlendMode = cesium.Cesium3DTileColorBlendMode?.REPLACE ?? 1
           break
         case '暖色调':
-          tileset.style = new C.Cesium3DTileStyle({ color: "color('#e8923f')" })
-          tileset.colorBlendMode = C.Cesium3DTileColorBlendMode?.REPLACE ?? 1
+          tileset.style = new cesium.Cesium3DTileStyle({ color: "color('#e8923f')" })
+          tileset.colorBlendMode = cesium.Cesium3DTileColorBlendMode?.REPLACE ?? 1
           break
         case '半透明':
-          tileset.style = new C.Cesium3DTileStyle({ color: "color('white', 0.4)" })
-          tileset.colorBlendMode = C.Cesium3DTileColorBlendMode?.MIX ?? 0
+          tileset.style = new cesium.Cesium3DTileStyle({ color: "color('white', 0.4)" })
+          tileset.colorBlendMode = cesium.Cesium3DTileColorBlendMode?.MIX ?? 0
           break
       }
       break
@@ -134,10 +134,10 @@ export function switchStyle(
 }
 
 export function setupPickHandler(
-  viewer: Cesium.Viewer, C: any, pickEnabled: () => boolean,
+  viewer: Cesium.Viewer, cesium: any, pickEnabled: () => boolean,
   modelIndex: () => number, setPickInfo: (info: any) => void,
 ): any {
-  const handler = new C.ScreenSpaceEventHandler(viewer.scene.canvas)
+  const handler = new cesium.ScreenSpaceEventHandler(viewer.scene.canvas)
   handler.setInputAction((movement: any) => {
     if (!pickEnabled() || viewer.isDestroyed()) return
     const pos = movement.position ?? movement.endPosition
@@ -172,17 +172,17 @@ export function setupPickHandler(
       props.push({ key: '类型', value: model.id === 'dayanta' ? '倾斜摄影 Mesh' : '建筑/点云' })
     }
     setPickInfo({ visible: true, modelName: model.name, properties: props })
-  }, C.ScreenSpaceEventType.LEFT_CLICK)
+  }, cesium.ScreenSpaceEventType.LEFT_CLICK)
   return handler
 }
 
 export function flyToView(
-  viewer: Cesium.Viewer, C: any, modelIndex: number, headingDeg: number, pitchDeg: number,
+  viewer: Cesium.Viewer, cesium: any, modelIndex: number, headingDeg: number, pitchDeg: number,
 ): void {
   const [lon, lat, h] = MODELS[modelIndex].homePosition
   viewer.camera.flyTo({
-    destination: C.Cartesian3.fromDegrees(lon, lat, h),
-    orientation: { heading: C.Math.toRadians(headingDeg), pitch: C.Math.toRadians(pitchDeg), roll: 0 },
+    destination: cesium.Cartesian3.fromDegrees(lon, lat, h),
+    orientation: { heading: cesium.Math.toRadians(headingDeg), pitch: cesium.Math.toRadians(pitchDeg), roll: 0 },
     duration: 1.0,
   })
 }

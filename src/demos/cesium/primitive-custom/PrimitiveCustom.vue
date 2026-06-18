@@ -16,7 +16,7 @@ const viewerReady = ref(false)
 const showTutorial = ref(false)
 
 let viewer: Cesium.Viewer | null = null
-let C: any = null
+let cesium: any = null
 let gui: any = null
 let primitive: any = null
 
@@ -28,27 +28,27 @@ const settings = reactive<PrimitiveSettings>({
 })
 
 function rebuild() {
-  if (!viewer || !C) return
+  if (!viewer || !cesium) return
   if (primitive) { viewer.scene.primitives.remove(primitive); primitive = null }
-  primitive = buildPrimitive(viewer, C, settings)
+  primitive = buildPrimitive(viewer, cesium, settings)
 }
 
 function onViewerReady(v: Cesium.Viewer) {
   viewer = v
-  C = window.Cesium
+  cesium = window.Cesium
   viewerReady.value = true
 
   v.scene.globe.depthTestAgainstTerrain = true
-  primitive = buildPrimitive(v, C, settings)
+  primitive = buildPrimitive(v, cesium, settings)
 
   const stage = document.querySelector('.demo-stage') as HTMLElement
   if (stage) gui = setupGUI(stage, settings, rebuild)
 
   v.camera.flyTo({
-    destination: C.Cartesian3.fromDegrees(116.410, 39.920, 2000),
+    destination: cesium.Cartesian3.fromDegrees(116.410, 39.920, 2000),
     orientation: {
-      heading: C.Math.toRadians(25),
-      pitch: C.Math.toRadians(-40),
+      heading: cesium.Math.toRadians(25),
+      pitch: cesium.Math.toRadians(-40),
       roll: 0,
     },
     duration: 1.5,

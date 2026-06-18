@@ -133,42 +133,42 @@ function getRenderOffset(): number {
 }
 
 function createDroneEntity(cfg: DroneConfig) {
-  const C = getCesium()
-  if (!C || !droneDS || !viewer) return
+  const cesium = getCesium()
+  if (!cesium || !droneDS || !viewer) return
 
   const droneId = cfg.id
   activeDroneIds.add(droneId)
   const color = nextColor()
 
   // 初始化位置缓存
-  const initPos = C.Cartesian3.fromDegrees(cfg.startLon, cfg.startLat, cfg.altitude)
-  const sp = new C.SampledPositionProperty()
-  sp.forwardExtrapolationType = C.ExtrapolationType.HOLD
-  sp.backwardExtrapolationType = C.ExtrapolationType.HOLD
-  sp.addSample(C.JulianDate.now(), initPos)
+  const initPos = cesium.Cartesian3.fromDegrees(cfg.startLon, cfg.startLat, cfg.altitude)
+  const sp = new cesium.SampledPositionProperty()
+  sp.forwardExtrapolationType = cesium.ExtrapolationType.HOLD
+  sp.backwardExtrapolationType = cesium.ExtrapolationType.HOLD
+  sp.addSample(cesium.JulianDate.now(), initPos)
 
   const state: TimeState = {
     sampledPosition: sp,
     latestPos: initPos.clone(),
-    latestOri: C.Quaternion.IDENTITY.clone(),
+    latestOri: cesium.Quaternion.IDENTITY.clone(),
   }
   droneStates.set(droneId, state)
-  latestOrientations.set(droneId, C.Quaternion.IDENTITY.clone())
+  latestOrientations.set(droneId, cesium.Quaternion.IDENTITY.clone())
   trackHistory.set(droneId, [])
 
   // 无人机实体
   droneDS.entities.add({
     id: droneId,
     name: cfg.name,
-    position: new C.CallbackProperty(() => {
+    position: new cesium.CallbackProperty(() => {
       if (!baseTime) return initPos
       const s = droneStates.get(droneId)
       if (!s) return initPos
       // 在 baseTime + 当前渲染偏移处插值
-      const renderTime = C.JulianDate.addSeconds(baseTime, getRenderOffset(), new C.JulianDate())
+      const renderTime = cesium.JulianDate.addSeconds(baseTime, getRenderOffset(), new cesium.JulianDate())
       return s.sampledPosition.getValue(renderTime) ?? s.latestPos
     }, false),
-    orientation: new C.CallbackProperty(() => latestOrientations.get(droneId) ?? C.Quaternion.IDENTITY, false),
+    orientation: new cesium.CallbackProperty(() => latestOrientations.get(droneId) ?? cesium.Quaternion.IDENTITY, false),
     billboard: {
       image: createDroneCanvas(color),
       scale: 1.0,
@@ -177,10 +177,10 @@ function createDroneEntity(cfg: DroneConfig) {
     label: {
       text: cfg.name.replace(/-\d{3}$/, ''),
       font: '10px monospace',
-      fillColor: C.Color.WHITE,
-      style: C.LabelStyle.FILL,
-      verticalOrigin: C.VerticalOrigin.BOTTOM,
-      pixelOffset: new C.Cartesian2(0, -16),
+      fillColor: cesium.Color.WHITE,
+      style: cesium.LabelStyle.FILL,
+      verticalOrigin: cesium.VerticalOrigin.BOTTOM,
+      pixelOffset: new cesium.Cartesian2(0, -16),
       show: settings.showLabels,
       disableDepthTestDistance: Number.POSITIVE_INFINITY,
     },
@@ -193,8 +193,8 @@ function createDroneEntity(cfg: DroneConfig) {
   trackDS!.entities.add({
     id: `track-${droneId}`,
     polyline: {
-      positions: [initPos.clone(), C.Cartesian3.add(initPos.clone(), new C.Cartesian3(1, 1, 0), new C.Cartesian3())],
-      material: C.Color.fromCssColorString(color).withAlpha(0.7),
+      positions: [initPos.clone(), cesium.Cartesian3.add(initPos.clone(), new cesium.Cartesian3(1, 1, 0), new cesium.Cartesian3())],
+      material: cesium.Color.fromCssColorString(color).withAlpha(0.7),
       width: settings.trackWidth,
       show: settings.showTracks,
       clampToGround: false,
@@ -209,15 +209,15 @@ function createDroneEntity(cfg: DroneConfig) {
  * ================================================================ */
 
 function updateOrientation(droneId: string, yaw: number, pitch: number, roll: number) {
-  const C = getCesium()
-  if (!C) return
+  const cesium = getCesium()
+  if (!cesium) return
   // yaw: 0=正北顺时针 → Cesium heading: 0=正东逆时针
-  const hpr = new C.HeadingPitchRoll(
-    C.Math.toRadians(90 - yaw),
-    C.Math.toRadians(pitch),
-    C.Math.toRadians(roll),
+  const hpr = new cesium.HeadingPitchRoll(
+    cesium.Math.toRadians(90 - yaw),
+    cesium.Math.toRadians(pitch),
+    cesium.Math.toRadians(roll),
   )
-  const ori = C.Transforms.headingPitchRollQuaternion(droneStates.get(droneId)!.latestPos, hpr)
+  const ori = cesium.Transforms.headingPitchRollQuaternion(droneStates.get(droneId)!.latestPos, hpr)
   latestOrientations.set(droneId, ori)
 }
 
@@ -251,14 +251,14 @@ function onSimTick(data: {
   drones: Map<string, { lon: number; lat: number; alt: number; yaw: number; pitch: number; roll: number; speed: number }>
   warnings: Array<{ droneId: string; title: string; level: string }>
 }) {
-  const C = getCesium()
-  if (!C || !viewer || viewer.isDestroyed() || !droneDS) return
+  const cesium = getCesium()
+  if (!cesium || !viewer || viewer.isDestroyed() || !droneDS) return
 
   // 建立基准时间
-  if (!baseTime) baseTime = C.JulianDate.now()
+  if (!baseTime) baseTime = cesium.JulianDate.now()
 
   // 采样以 simTime 秒偏移添加到 SampledPositionProperty
-  const sampleTime = C.JulianDate.addSeconds(baseTime, data.simTime, new C.JulianDate())
+  const sampleTime = cesium.JulianDate.addSeconds(baseTime, data.simTime, new cesium.JulianDate())
 
   if (data.simTime % 10 === 0) {
     console.log(`[DroneFleet] t=${data.simTime}s, samples=${data.drones.size}, active=${activeDroneIds.size}`)
@@ -286,7 +286,7 @@ function onSimTick(data: {
   // —— 更新位置 & 朝向 ——
   for (const [droneId, s] of data.drones) {
     if (!activeDroneIds.has(droneId)) continue
-    const pos = C.Cartesian3.fromDegrees(s.lon, s.lat, s.alt)
+    const pos = cesium.Cartesian3.fromDegrees(s.lon, s.lat, s.alt)
     const state = droneStates.get(droneId)
     if (state) {
       state.sampledPosition.addSample(sampleTime, pos)
@@ -310,7 +310,7 @@ function onSimTick(data: {
         const c = (trackEntity as any)._droneColor || '#00CFF8'
         trackEntity.polyline = {
           positions: windowed.map(h => h.pos),
-          material: C.Color.fromCssColorString(c).withAlpha(0.7),
+          material: cesium.Color.fromCssColorString(c).withAlpha(0.7),
           width: settings.trackWidth,
           show: settings.showTracks,
           clampToGround: false,
@@ -340,21 +340,21 @@ function ensureAllDronesCreated() {
 
 /** 回放模式：批量预加载全部采样点到 SampledPositionProperty */
 function preloadAllSamplesForReplay() {
-  const C = getCesium()
-  if (!C || !baseTime) return
+  const cesium = getCesium()
+  if (!cesium || !baseTime) return
 
   for (const [droneId, state] of droneStates) {
     const samples = flightData.samples[droneId]
     if (!samples || samples.length === 0) continue
 
     // 重建 SampledPositionProperty（清空实时模式的零散采样点）
-    const newSp = new C.SampledPositionProperty()
-    newSp.forwardExtrapolationType = C.ExtrapolationType.HOLD
-    newSp.backwardExtrapolationType = C.ExtrapolationType.HOLD
+    const newSp = new cesium.SampledPositionProperty()
+    newSp.forwardExtrapolationType = cesium.ExtrapolationType.HOLD
+    newSp.backwardExtrapolationType = cesium.ExtrapolationType.HOLD
 
     for (const s of samples) {
-      const pos = C.Cartesian3.fromDegrees(s.lon, s.lat, s.alt)
-      const jd = C.JulianDate.addSeconds(baseTime, s.time, new C.JulianDate())
+      const pos = cesium.Cartesian3.fromDegrees(s.lon, s.lat, s.alt)
+      const jd = cesium.JulianDate.addSeconds(baseTime, s.time, new cesium.JulianDate())
       newSp.addSample(jd, pos)
     }
 
@@ -363,7 +363,7 @@ function preloadAllSamplesForReplay() {
     // 同步重建 trackHistory（全量，供 rebuildTracksAtTime 过滤）
     const history = samples.map(s => ({
       time: s.time,
-      pos: C.Cartesian3.fromDegrees(s.lon, s.lat, s.alt),
+      pos: cesium.Cartesian3.fromDegrees(s.lon, s.lat, s.alt),
     }))
     trackHistory.set(droneId, history)
   }
@@ -388,8 +388,8 @@ function rebuildTracksAtTime(currentTime: number) {
   if (intSec === _lastRebuildIntSec) return
   _lastRebuildIntSec = intSec
 
-  const C = getCesium()
-  if (!C) return
+  const cesium = getCesium()
+  if (!cesium) return
 
   for (const droneId of activeDroneIds) {
     const history = trackHistory.get(droneId)
@@ -406,7 +406,7 @@ function rebuildTracksAtTime(currentTime: number) {
     const color = (trackEntity as any)._droneColor || '#00CFF8'
     trackEntity.polyline = {
       positions: windowed.map(h => h.pos),
-      material: C.Color.fromCssColorString(color).withAlpha(0.7),
+      material: cesium.Color.fromCssColorString(color).withAlpha(0.7),
       width: settings.trackWidth,
       show: settings.showTracks,
       clampToGround: false,
@@ -453,12 +453,12 @@ function updateReplayFrame() {
 
 /** 切换到回放模式 */
 function switchToReplay() {
-  const C = getCesium()
-  if (!C) return
+  const cesium = getCesium()
+  if (!cesium) return
 
   // 确保 baseTime 已初始化（实时模式可能还没收到第一个 tick）
   if (!baseTime) {
-    baseTime = C.JulianDate.now()
+    baseTime = cesium.JulianDate.now()
   }
 
   // 1. 暂停实时推送
@@ -605,24 +605,24 @@ function setupGUI() {
  * ================================================================ */
 
 function flyToShanghai() {
-  const C = getCesium()
-  if (!C || !viewer) return
+  const cesium = getCesium()
+  if (!cesium || !viewer) return
   viewer.camera.flyTo({
-    destination: C.Cartesian3.fromDegrees(121.50, 31.23, 12000),
-    orientation: { heading: C.Math.toRadians(0), pitch: C.Math.toRadians(-55), roll: 0 },
+    destination: cesium.Cartesian3.fromDegrees(121.50, 31.23, 12000),
+    orientation: { heading: cesium.Math.toRadians(0), pitch: cesium.Math.toRadians(-55), roll: 0 },
     duration: 2.0,
   })
 }
 
 function followDrone() {
-  const C = getCesium()
-  if (!C || !viewer) return
+  const cesium = getCesium()
+  if (!cesium || !viewer) return
   const firstId = activeDroneIds.values().next().value
   if (!firstId) return flyToShanghai()
   const pos = droneStates.get(firstId)?.latestPos
   if (pos) {
     viewer.camera.flyTo({
-      destination: C.Cartesian3.add(pos, new C.Cartesian3(0, 0, 800), new C.Cartesian3()),
+      destination: cesium.Cartesian3.add(pos, new cesium.Cartesian3(0, 0, 800), new cesium.Cartesian3()),
       duration: 1.0,
     })
   }
@@ -663,16 +663,16 @@ function updateLabelContent(droneId: string, sample: { alt: number; speed: numbe
 
 function updateAllLabelPositions() {
   if (!viewer || viewer.isDestroyed() || !baseTime) return
-  const C = getCesium()
-  if (!C) return
+  const cesium = getCesium()
+  if (!cesium) return
   const scene = viewer.scene
-  const renderTime = C.JulianDate.addSeconds(baseTime, getRenderOffset(), new C.JulianDate())
+  const renderTime = cesium.JulianDate.addSeconds(baseTime, getRenderOffset(), new cesium.JulianDate())
   for (const [droneId, state] of droneStates) {
     const el = htmlLabels.get(droneId)
     if (!el) continue
     // 用插值后的位置（与无人机实体同步）
     const pos = state.sampledPosition.getValue(renderTime) ?? state.latestPos
-    const screen = C.SceneTransforms.wgs84ToWindowCoordinates(scene, pos)
+    const screen = cesium.SceneTransforms.wgs84ToWindowCoordinates(scene, pos)
     if (screen) {
       el.style.display = ''
       el.style.transform = `translate(${screen.x}px, ${screen.y}px)`
@@ -688,13 +688,13 @@ function updateAllLabelPositions() {
 
 function onViewerReady(v: Cesium.Viewer) {
   viewer = v
-  const C = getCesium()
-  if (!C) return
+  const cesium = getCesium()
+  if (!cesium) return
 
-  droneDS = new C.CustomDataSource('drones')
+  droneDS = new cesium.CustomDataSource('drones')
   viewer.dataSources.add(droneDS)
 
-  trackDS = new C.CustomDataSource('tracks')
+  trackDS = new cesium.CustomDataSource('tracks')
   viewer.dataSources.add(trackDS)
 
   simulator = new DroneWsSimulator(flightData)

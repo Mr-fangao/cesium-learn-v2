@@ -23,8 +23,8 @@ export function createGlowImage(inner: string, outer: string): HTMLCanvasElement
  * 场景建造
  * ================================================================ */
 
-export function buildLaunchPad(viewer: Cesium.Viewer, C: any): void {
-  const { Cartesian3, Color } = C
+export function buildLaunchPad(viewer: Cesium.Viewer, cesium: any): void {
+  const { Cartesian3, Color } = cesium
 
   viewer.entities.add({
     name: '发射台基座',
@@ -68,23 +68,23 @@ export function buildLaunchPad(viewer: Cesium.Viewer, C: any): void {
   })
 }
 
-export function buildRocket(viewer: Cesium.Viewer, C: any): Cesium.Entity {
-  const startPos = C.Cartesian3.fromDegrees(110.949, 19.618, 10)
+export function buildRocket(viewer: Cesium.Viewer, cesium: any): Cesium.Entity {
+  const startPos = cesium.Cartesian3.fromDegrees(110.949, 19.618, 10)
   const rocket = viewer.entities.add({
     name: '火箭', position: startPos,
-    cylinder: { length: 36, topRadius: 2.2, bottomRadius: 2.2, material: C.Color.WHITE },
+    cylinder: { length: 36, topRadius: 2.2, bottomRadius: 2.2, material: cesium.Color.WHITE },
   })
   viewer.entities.add({
-    name: '整流罩', parent: rocket, position: new C.Cartesian3(0, 0, 18),
-    cylinder: { length: 8, topRadius: 0.15, bottomRadius: 2.3, material: C.Color.fromCssColorString('#e74c3c') },
+    name: '整流罩', parent: rocket, position: new cesium.Cartesian3(0, 0, 18),
+    cylinder: { length: 8, topRadius: 0.15, bottomRadius: 2.3, material: cesium.Color.fromCssColorString('#e74c3c') },
   })
   viewer.entities.add({
-    name: '喷管', parent: rocket, position: new C.Cartesian3(0, 0, -20),
-    cylinder: { length: 3, topRadius: 1.2, bottomRadius: 1.6, material: C.Color.fromCssColorString('#2c3e50') },
+    name: '喷管', parent: rocket, position: new cesium.Cartesian3(0, 0, -20),
+    cylinder: { length: 3, topRadius: 1.2, bottomRadius: 1.6, material: cesium.Color.fromCssColorString('#2c3e50') },
   })
   viewer.entities.add({
-    name: '箭体标识', parent: rocket, position: new C.Cartesian3(0, 0, -8),
-    cylinder: { length: 2, topRadius: 2.25, bottomRadius: 2.25, material: C.Color.fromCssColorString('#e74c3c') },
+    name: '箭体标识', parent: rocket, position: new cesium.Cartesian3(0, 0, -8),
+    cylinder: { length: 2, topRadius: 2.25, bottomRadius: 2.25, material: cesium.Color.fromCssColorString('#e74c3c') },
   })
   return rocket
 }
@@ -93,7 +93,7 @@ export function buildRocket(viewer: Cesium.Viewer, C: any): Cesium.Entity {
  * 弹道预计算
  * ================================================================ */
 
-export function buildTrajectory(C: any): { time: number; pos: any }[] {
+export function buildTrajectory(cesium: any): { time: number; pos: any }[] {
   const samples: { time: number; pos: any }[] = []
   const padLon = 110.949, padLat = 19.618, BASE_ALT = 10
   for (let t = 0; t <= 120; t++) {
@@ -101,7 +101,7 @@ export function buildTrajectory(C: any): { time: number; pos: any }[] {
     let eastOffset = 0
     if (t > 10) { const pt = t - 10; eastOffset = 0.5 * 3 * pt * pt * 0.5 }
     const dLon = eastOffset / (111320 * Math.cos((padLat * Math.PI) / 180))
-    samples.push({ time: t, pos: C.Cartesian3.fromDegrees(padLon + dLon, padLat, alt) })
+    samples.push({ time: t, pos: cesium.Cartesian3.fromDegrees(padLon + dLon, padLat, alt) })
   }
   return samples
 }
@@ -110,33 +110,33 @@ export function buildTrajectory(C: any): { time: number; pos: any }[] {
  * 粒子系统
  * ================================================================ */
 
-export function createFlameSystem(C: any, flameImg: HTMLCanvasElement): any {
-  return new C.ParticleSystem({
+export function createFlameSystem(cesium: any, flameImg: HTMLCanvasElement): any {
+  return new cesium.ParticleSystem({
     show: true, image: flameImg,
-    emitter: new C.ConeEmitter(C.Math.toRadians(12)),
+    emitter: new cesium.ConeEmitter(cesium.Math.toRadians(12)),
     emissionRate: 200, speed: 25, minimumSpeed: 20, maximumSpeed: 45,
     startScale: 6, endScale: 1.5,
-    startColor: C.Color.YELLOW.withAlpha(0.9),
-    endColor: new C.Color(1.0, 0.2, 0.0, 0.0),
+    startColor: cesium.Color.YELLOW.withAlpha(0.9),
+    endColor: new cesium.Color(1.0, 0.2, 0.0, 0.0),
     minimumParticleLife: 0.4, maximumParticleLife: 0.9,
     emitterModelMatrix: (() => {
-      const rot = C.Matrix3.fromRotationX(C.Math.toRadians(180))
-      return C.Matrix4.fromRotationTranslation(rot, new C.Cartesian3(0, 0, -20))
+      const rot = cesium.Matrix3.fromRotationX(cesium.Math.toRadians(180))
+      return cesium.Matrix4.fromRotationTranslation(rot, new cesium.Cartesian3(0, 0, -20))
     })(),
   })
 }
 
-export function createSmokeSystem(C: any, smokeImg: HTMLCanvasElement): any {
-  return new C.ParticleSystem({
+export function createSmokeSystem(cesium: any, smokeImg: HTMLCanvasElement): any {
+  return new cesium.ParticleSystem({
     show: true, image: smokeImg,
-    emitter: new C.CircleEmitter(3.0),
+    emitter: new cesium.CircleEmitter(3.0),
     emissionRate: 60, speed: 5, minimumSpeed: 2, maximumSpeed: 10,
     startScale: 2.5, endScale: 14,
-    startColor: new C.Color(0.95, 0.95, 0.95, 0.55),
-    endColor: new C.Color(0.7, 0.7, 0.7, 0.0),
+    startColor: new cesium.Color(0.95, 0.95, 0.95, 0.55),
+    endColor: new cesium.Color(0.7, 0.7, 0.7, 0.0),
     minimumParticleLife: 2.5, maximumParticleLife: 4.5,
     sizeInMeters: true,
-    emitterModelMatrix: C.Matrix4.fromTranslation(new C.Cartesian3(0, 0, -20), new C.Matrix4()),
+    emitterModelMatrix: cesium.Matrix4.fromTranslation(new cesium.Cartesian3(0, 0, -20), new cesium.Matrix4()),
   })
 }
 
@@ -145,7 +145,7 @@ export function createSmokeSystem(C: any, smokeImg: HTMLCanvasElement): any {
  * ================================================================ */
 
 export function createPreUpdateHandler(
-  C: any, viewer: () => Cesium.Viewer | null,
+  cesium: any, viewer: () => Cesium.Viewer | null,
   rocketEntity: () => Cesium.Entity | null,
   flamePS: () => any, smokePS: () => any,
   launched: () => boolean,
@@ -156,7 +156,7 @@ export function createPreUpdateHandler(
     if (!v || !r || !f || !s) return
     const pos = r.position?.getValue(v.clock.currentTime)
     if (!pos) return
-    const m = C.Transforms.eastNorthUpToFixedFrame(pos, C.Ellipsoid.WGS84, new C.Matrix4())
+    const m = cesium.Transforms.eastNorthUpToFixedFrame(pos, cesium.Ellipsoid.WGS84, new cesium.Matrix4())
     f.modelMatrix = m; s.modelMatrix = m
   }
 }

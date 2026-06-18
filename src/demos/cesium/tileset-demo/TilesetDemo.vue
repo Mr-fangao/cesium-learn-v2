@@ -18,7 +18,7 @@ const pickInfo = ref<{ visible: boolean; modelName: string; properties: { key: s
 )
 
 let viewer: Cesium.Viewer | null = null
-let C: any = null
+let cesium: any = null
 let gui: any = null
 let pickHandler: any = null
 let guiStyleCtrl: { value: any } = { value: null }
@@ -39,11 +39,11 @@ function setPickInfo(p: any) {
 }
 
 async function doLoadModel(idx: number) {
-  if (!viewer || !C) return
+  if (!viewer || !cesium) return
   currentModelIndex = idx
   pickInfo.value = { visible: false, modelName: '', properties: [] }
-  currentTileset = await loadModel(viewer, C, idx, currentTileset, settings.showBoundingVolume)
-  applyCurrentStyle(C, currentTileset, idx, settings.opacity)
+  currentTileset = await loadModel(viewer, cesium, idx, currentTileset, settings.showBoundingVolume)
+  applyCurrentStyle(cesium, currentTileset, idx, settings.opacity)
 }
 
 async function onModelChange(name: string) {
@@ -55,19 +55,19 @@ async function onModelChange(name: string) {
 
 function onStyleChange(name: string) {
   switchStyle(name, currentModelIndex, settings)
-  if (C) applyCurrentStyle(C, currentTileset, currentModelIndex, settings.opacity)
+  if (cesium) applyCurrentStyle(cesium, currentTileset, currentModelIndex, settings.opacity)
 }
 
 function onOpacityChange() {
   if (isTilesetAlive(currentTileset, viewer) && C) {
     currentTileset.colorBlendAmount = settings.opacity
-    applyCurrentStyle(C, currentTileset, currentModelIndex, settings.opacity)
+    applyCurrentStyle(cesium, currentTileset, currentModelIndex, settings.opacity)
   }
 }
 
 function onViewerReady(v: Cesium.Viewer) {
   viewer = v
-  C = window.Cesium
+  cesium = window.Cesium
 
   doLoadModel(0)
 
@@ -77,8 +77,8 @@ function onViewerReady(v: Cesium.Viewer) {
       stage, settings, guiStyleCtrl,
       onModelChange, onStyleChange, onOpacityChange,
       (v: boolean) => { if (isTilesetAlive(currentTileset, viewer)) currentTileset.debugShowBoundingVolume = v },
-      (h: number, p: number) => { if (viewer && C) flyToView(viewer, C, currentModelIndex, h, p) },
-      () => { if (viewer && C) viewer.camera.flyTo({ destination: C.Cartesian3.fromDegrees(...MODELS[currentModelIndex].homePosition), duration: 1.0 }) },
+      (h: number, p: number) => { if (viewer && C) flyToView(viewer, cesium, currentModelIndex, h, p) },
+      () => { if (viewer && C) viewer.camera.flyTo({ destination: cesium.Cartesian3.fromDegrees(...MODELS[currentModelIndex].homePosition), duration: 1.0 }) },
       () => currentModelIndex,
     )
   }
